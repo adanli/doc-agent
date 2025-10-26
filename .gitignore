@@ -236,3 +236,5 @@ fabric.properties
 
 .idea
 .mvn
+mvnw
+mvnw.cmd

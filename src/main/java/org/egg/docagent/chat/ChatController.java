@@ -86,7 +86,6 @@ public class ChatController {
         gson = builder.create();
 
         openAIClient = OpenAIOkHttpClient.builder()
-                .apiKey("sk-294a2d7893854ce3a484e90aabf74da6")
                 .baseUrl("https://dashscope.aliyuncs.com/compatible-mode/v1")
                 .build();
 

@@ -238,3 +238,5 @@ fabric.properties
 .mvn
 mvnw
 mvnw.cmd
+
+application-sk.properties

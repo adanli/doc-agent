@@ -18,7 +18,9 @@ import org.egg.docagent.entity.FileContent;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,7 +39,12 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-public class ChatController {
+public class ChatController implements InitializingBean {
+    @Value("${spring.ai.openai.base-url}")
+    private String baseUrl;
+    @Value("${spring.ai.openai.api-key}")
+    private String sk;
+
     @Autowired
     private ChatClient chatClient;
     @Autowired
@@ -50,7 +57,7 @@ public class ChatController {
 
     private String outPath = "D:\\doc_out";
 
-    private final List<String> bashDir = List.of(
+    private final List<String> baseDir = List.of(
             "D:\\doc"
     );
 
@@ -76,20 +83,8 @@ public class ChatController {
     @Autowired
     private MilvusServiceClient milvusServiceClient;
 
-    private final Gson gson;
+    private Gson gson;
     private OpenAIClient openAIClient;
-
-
-    {
-        GsonBuilder builder = new GsonBuilder();
-        builder.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES);
-        gson = builder.create();
-
-        openAIClient = OpenAIOkHttpClient.builder()
-                .baseUrl("https://dashscope.aliyuncs.com/compatible-mode/v1")
-                .build();
-
-    }
 
     @GetMapping(value = "/save-info-milvus")
     public String saveIntoMilvus(String path) {
@@ -166,7 +161,7 @@ public class ChatController {
      * @return 返回模糊查询匹配成功的主键列表
      */
     @GetMapping(value = "/similar-search")
-    public List<String> similarSearch(@RequestParam(value = "keywords") String keywords) {
+    public List<SearchResult> similarSearch(@RequestParam(value = "keywords") String keywords) {
         float[] embeddings = this.embedding(keywords);
         List<List<Float>> queryVectors = new ArrayList<>();
         List<Float> vector = new ArrayList<>();
@@ -187,10 +182,32 @@ public class ChatController {
         R<SearchResults> response = milvusServiceClient.search(searchParam);
         SearchResults results = response.getData();
 
-        List<String> ids = results.getResults().getIds().getStrId().getDataList();
-        ids.forEach(System.out::println);
-        return ids;
+        int size = results.getResults().getIds().getStrId().getDataCount();
+        List<SearchResult> list = new ArrayList<>(size);
+
+        for (int i=0; i<size; i++) {
+            float score = results.getResults().getScores(i);
+            String id = results.getResults().getIds().getStrId().getData(i);
+            System.out.printf("%s ----- %f%n", id, score);
+            list.add(new SearchResult(id, score));
+        }
+
+        return list;
     }
+
+    @Override
+    public void afterPropertiesSet() throws Exception {
+        GsonBuilder builder = new GsonBuilder();
+        builder.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES);
+        gson = builder.create();
+
+        openAIClient = OpenAIOkHttpClient.builder()
+                .apiKey(sk)
+                .baseUrl(baseUrl)
+                .build();
+    }
+
+    record SearchResult(String id, float score){}
 
     /**
      * 遍历文件夹，处理文件
@@ -198,7 +215,7 @@ public class ChatController {
     @PostMapping(value = "/execute")
     public String execute() {
         List<String> files = new ArrayList<>();
-        for (String dir: bashDir) {
+        for (String dir: baseDir) {
             iterDir(files, dir);
         }
 

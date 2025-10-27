@@ -65,7 +65,7 @@ public class ChatController implements InitializingBean {
             .of(
                     ".docx",".xlsx",".pptx",
                     ".doc",".xls",".ppt",
-                    ".pdf",".txt"
+                    ".pdf",".txt", ".xmind"
             );
 
     @GetMapping("/ai")
@@ -203,7 +203,7 @@ public class ChatController implements InitializingBean {
 
         openAIClient = OpenAIOkHttpClient.builder()
                 .apiKey(sk)
-                .baseUrl(baseUrl)
+                .baseUrl(String.format("%s/%s", baseUrl, "v1"))
                 .build();
 
         baseDir.add(basePath);
@@ -222,13 +222,19 @@ public class ChatController implements InitializingBean {
         }
 
         int total = files.size();
-        int count = 0;
+        int successCount = 0;
+        int errorCount = 0;
 
         for (String file: files) {
             long s1 = System.currentTimeMillis();
-            summaryFileContent(file);
-            count++;
-            System.out.printf("%s文件解析完成，耗时: %ss，完成进度%d/%d%n", file, (System.currentTimeMillis()-s1)/1000, count, total);
+            try {
+                summaryFileContent(file);
+                successCount++;
+            } catch (Exception e) {
+                e.printStackTrace();
+                errorCount++;
+            }
+            System.out.printf("%s文件解析完成，耗时: %ss，成功进度: %d/%d, 失败进度: %d/%d%n", file, (System.currentTimeMillis()-s1)/1000, successCount, total, errorCount, total);
         }
 
         return "success";
@@ -265,7 +271,7 @@ public class ChatController implements InitializingBean {
      * 总结文章内容
      */
     @PostMapping(value = "summary-file-content")
-    public String summaryFileContent(@RequestParam("path") String path) {
+    public String summaryFileContent(@RequestParam("path") String path) throws Exception{
         // 设置文件路径,请根据实际需求修改路径与文件名
         Path filePath = Paths.get(path);
         // 创建文件上传参数
@@ -309,6 +315,7 @@ public class ChatController implements InitializingBean {
                 Files.write(p, (path+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
             } catch (IOException e) {
                 e.printStackTrace();
+                throw e;
             }
         }
 
@@ -328,6 +335,7 @@ public class ChatController implements InitializingBean {
 
         } catch (IOException e) {
             e.printStackTrace();
+            throw e;
         }
 
 
@@ -352,10 +360,8 @@ public class ChatController implements InitializingBean {
         } catch (Exception e) {
             System.err.println("错误信息：" + e.getMessage());
             System.err.println("请参考文档：https://help.aliyun.com/zh/model-studio/developer-reference/error-code");
+            throw e;
         }
-
-        System.err.println("解析文件失败: " + path);
-        return null;
 
     }
 
@@ -381,6 +387,8 @@ public class ChatController implements InitializingBean {
                 System.err.printf("异常%d/%d: %s%n", count, files.length, f);
             }
         }
+
+        System.out.println("完成");
 
     }
 

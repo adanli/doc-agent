@@ -240,3 +240,4 @@ mvnw
 mvnw.cmd
 
 application-sk.properties
+application-mac.properties

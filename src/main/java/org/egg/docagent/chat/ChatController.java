@@ -44,6 +44,10 @@ public class ChatController implements InitializingBean {
     private String baseUrl;
     @Value("${spring.ai.openai.api-key}")
     private String sk;
+    @Value("${file.out.path}")
+    private String outPath;
+    @Value("${file.base.path}")
+    private String basePath;
 
     @Autowired
     private ChatClient chatClient;
@@ -55,11 +59,7 @@ public class ChatController implements InitializingBean {
 
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
 
-    private String outPath = "D:\\doc_out";
-
-    private final List<String> baseDir = List.of(
-            "D:\\doc"
-    );
+    private final List<String> baseDir = new ArrayList<>();
 
     private final List<String> includeSuffix = List
             .of(
@@ -205,6 +205,8 @@ public class ChatController implements InitializingBean {
                 .apiKey(sk)
                 .baseUrl(baseUrl)
                 .build();
+
+        baseDir.add(basePath);
     }
 
     record SearchResult(String id, float score){}
@@ -219,10 +221,14 @@ public class ChatController implements InitializingBean {
             iterDir(files, dir);
         }
 
+        int total = files.size();
+        int count = 0;
+
         for (String file: files) {
             long s1 = System.currentTimeMillis();
             summaryFileContent(file);
-            System.out.printf("%s文件解析完成，耗时: %ss%n", file, (System.currentTimeMillis()-s1)/1000);
+            count++;
+            System.out.printf("%s文件解析完成，耗时: %ss，完成进度%d/%d%n", file, (System.currentTimeMillis()-s1)/1000, count, total);
         }
 
         return "success";

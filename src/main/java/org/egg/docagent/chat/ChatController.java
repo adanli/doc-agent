@@ -48,6 +48,8 @@ public class ChatController implements InitializingBean {
     private String outPath;
     @Value("${file.base.path}")
     private String basePath;
+    @Value("${spring.ai.openai.chat.options.model}")
+    private String model;
 
     @Autowired
     private ChatClient chatClient;
@@ -302,7 +304,7 @@ public class ChatController implements InitializingBean {
                         输出格式：
                         直接输出提炼后的文本内容，不要包含任何解释、前缀（如“提炼结果：”）或后缀。
                         """)
-                .model("qwen-long")
+                .model(model)
                 .build();
 
         String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");

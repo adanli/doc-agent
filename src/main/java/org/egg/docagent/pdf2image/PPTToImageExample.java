@@ -20,7 +20,8 @@ public class PPTToImageExample {
      */
     public static void convertSingleFile() {
         try {
-            String pptFilePath = "/Users/adan/Documents/1. 工作/1. 中华/3. 架构办/5. 工作计划/2025年/1. 全年/2025年务虚会_架构办.pptx"; // 或 "presentation.ppt"
+            String pptFilePath = "D:\\doc\\cic\\政健险补充高阶方案0.1(1).pptx"; // 或 "presentation.ppt"
+//            String pptFilePath = "/Users/adan/Documents/1. 工作/1. 中华/3. 架构办/5. 工作计划/2025年/1. 全年/2025年务虚会_架构办.pptx"; // 或 "presentation.ppt"
             String outputDir = "output_images";
             String format = "png";
 

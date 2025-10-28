@@ -65,9 +65,10 @@ public class ChatController implements InitializingBean {
 
     private final List<String> includeSuffix = List
             .of(
-                    ".docx",".xlsx",".pptx",
-                    ".doc",".xls",".ppt",
-                    ".pdf",".txt", ".xmind"
+//                    ".docx",".xlsx",".pptx",
+//                    ".doc",".xls",".ppt",
+//                    ".pdf",".txt", ".xmind"
+                    ".pptx"
             );
 
     @GetMapping("/ai")

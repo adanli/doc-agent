@@ -22,6 +22,7 @@ import io.milvus.param.highlevel.dml.InsertRowsParam;
 import org.egg.docagent.entity.FileContent;
 import org.egg.docagent.ossutil.OSSUtil;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
+import org.egg.docagent.word2image.WordToImageConverter;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
@@ -251,6 +252,8 @@ public class ChatController implements InitializingBean {
         int successCount = 0;
         int errorCount = 0;
 
+        long start = System.currentTimeMillis();
+
         for (String file: files) {
             long s1 = System.currentTimeMillis();
             try {
@@ -262,6 +265,8 @@ public class ChatController implements InitializingBean {
             }
             System.out.printf("%s文件解析完成，耗时: %ss，成功进度: %d/%d, 失败进度: %d/%d%n", file, (System.currentTimeMillis()-s1)/1000, successCount, total, errorCount, total);
         }
+
+        System.out.printf("整体耗时: %ss%n", (System.currentTimeMillis()-start)/1000);
 
         return "success";
     }
@@ -379,10 +384,89 @@ public class ChatController implements InitializingBean {
     public String summaryFileContent(@RequestParam("path") String path) throws Exception{
         if(path.endsWith(".pptx")) {
             this.summaryPPTFileContent(path);
+        } else if(path.endsWith(".docx")) {
+            this.summaryWordFileContent(path);
         } else {
             this.summaryNormalFileContent(path);
         }
         return "success";
+    }
+
+    /**
+     * 1. 将PPT转成图片
+     * 2. 使用大模型，解析图片
+     * 3. 将文件夹内图片，解析后合并到一个文件
+     */
+    private void summaryWordFileContent(String path) {
+        String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
+        String format = "png";
+        String outputDir = String.format("%s/%s_dir", outPath, _p);
+        File file = new File(outputDir);
+        if(!file.exists()) {
+            file.mkdirs();
+        }
+
+        try {
+            WordToImageConverter.convertToImages(path, outputDir, format);
+
+            StringBuilder sb = new StringBuilder();
+            String[] files = file.list();
+            FileContent fileContent = new FileContent();
+            this.getBasicFileInfo(path, fileContent);
+
+            for(String f: files) {
+                String p = String.format("%s/%s", outputDir, f);
+                // 上传到oss
+                try {
+                    ossUtil.upload(new FileInputStream(p), f);
+                } catch (Exception e) {
+                    throw new RuntimeException("上传到oss失败: " + f);
+                }
+
+                String content = this.summaryPicture(f);
+                sb.append(content);
+            }
+            fileContent.setSourceContent(sb.toString());
+
+            String outputFile = String.format("%s/%s.txt", outPath, _p);
+            try {
+                File newFile = new File(outputFile);
+                if(newFile.exists()) {
+                    newFile.delete();
+                }
+                if(!newFile.exists()) {
+                    newFile.createNewFile();
+                }
+
+            } catch (Exception e) {
+                throw new RuntimeException("创建文件失败: " + path);
+            }
+
+            try {
+
+                Path p = Paths.get(outputFile);
+                Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
+                // 文件名称
+                Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+                // 创建时间
+                Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                // 修改时间
+                Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+                if(StringUtils.hasLength(fileContent.getSourceContent())) {
+                    Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        } finally {
+            clearDir(file);
+        }
+
+
     }
 
     /**
@@ -399,59 +483,85 @@ public class ChatController implements InitializingBean {
             file.mkdirs();
         }
 
-        PPTToImageConverter.convertToImages(path, outputDir, format);
+        try {
+            PPTToImageConverter.convertToImages(path, outputDir, format);
 
-        StringBuilder sb = new StringBuilder();
-        String[] files = file.list();
-        FileContent fileContent = new FileContent();
-        this.getBasicFileInfo(path, fileContent);
+            StringBuilder sb = new StringBuilder();
+            String[] files = file.list();
+            FileContent fileContent = new FileContent();
+            this.getBasicFileInfo(path, fileContent);
 
-        for(String f: files) {
-            String p = String.format("%s/%s", outputDir, f);
-            // 上传到oss
+            for(String f: files) {
+                String p = String.format("%s/%s", outputDir, f);
+                // 上传到oss
+                try {
+                    ossUtil.upload(new FileInputStream(p), f);
+                } catch (Exception e) {
+                    throw new RuntimeException("上传到oss失败: " + f);
+                }
+
+                String content = this.summaryPicture(f);
+                sb.append(content);
+            }
+            fileContent.setSourceContent(sb.toString());
+
+            String outputFile = String.format("%s/%s.txt", outPath, _p);
             try {
-                ossUtil.upload(new FileInputStream(p), f);
+                File newFile = new File(outputFile);
+                if(newFile.exists()) {
+                    newFile.delete();
+                }
+                if(!newFile.exists()) {
+                    newFile.createNewFile();
+                }
+
             } catch (Exception e) {
-                throw new RuntimeException("上传到oss失败: " + f);
+                throw new RuntimeException("创建文件失败: " + path);
             }
 
-            String content = this.summaryPicture(f);
-            sb.append(content);
+            try {
+
+                Path p = Paths.get(outputFile);
+                Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
+                // 文件名称
+                Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+                // 创建时间
+                Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                // 修改时间
+                Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+                if(StringUtils.hasLength(fileContent.getSourceContent())) {
+                    Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        } finally {
+            clearDir(file);
         }
-        fileContent.setSourceContent(sb.toString());
 
-        String outputFile = String.format("%s/%s.txt", outPath, _p);
-        try {
-            File newFile = new File(outputFile);
-            if(newFile.exists()) {
-                newFile.delete();
-            }
-            if(!newFile.exists()) {
-                newFile.createNewFile();
-            }
 
-        } catch (Exception e) {
-            throw new RuntimeException("创建文件失败: " + path);
+    }
+
+    private void clearDir(File file) {
+        if(!file.isDirectory()) return;
+
+        String[] files = file.list();
+        if(files == null) return;
+
+        for (String f: files) {
+            String path = String.format("%s/%s", file.getPath(), f);
+            File file1 = new File(path);
+            file1.delete();
         }
 
-        try {
-
-            Path p = Paths.get(outputFile);
-            Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
-            // 文件名称
-            Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-
-            // 创建时间
-            Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-            // 修改时间
-            Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-
-            if(StringUtils.hasLength(fileContent.getSourceContent())) {
-                Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
+        if(file.delete()) {
+            System.out.println("删除: " + file.getPath() + "成功");
+        } else {
+            System.err.println("删除: " + file.getPath() + "失败");
         }
 
     }
@@ -527,6 +637,13 @@ public class ChatController implements InitializingBean {
             throw new RuntimeException(e);
         }
 
+    }
+
+    public static void main(String[] args) {
+        String path1 = "/Users/adan/doc_out/_Users_adan_Documents_test_技改方案的评审管理办法.docx_dir";
+        new ChatController().clearDir(new File(path1));
+        String path2 = "/Users/adan/doc_out/_Users_adan_Documents_test_附件4：部门工作总结复盘-架构办.pptx_dir";
+        new ChatController().clearDir(new File(path2));
     }
 
 }

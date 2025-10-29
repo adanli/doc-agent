@@ -21,7 +21,7 @@ import io.milvus.param.dml.SearchParam;
 import io.milvus.param.highlevel.dml.InsertRowsParam;
 import org.egg.docagent.entity.FileContent;
 import org.egg.docagent.ossutil.OSSUtil;
-import org.egg.docagent.pdf2image.PPTToImageConverter;
+import org.egg.docagent.ppt2image.PPTToImageConverter;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;

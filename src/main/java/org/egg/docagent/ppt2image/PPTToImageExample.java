@@ -1,4 +1,4 @@
-package org.egg.docagent.pdf2image;
+package org.egg.docagent.ppt2image;
 
 import java.io.File;
 import java.util.List;

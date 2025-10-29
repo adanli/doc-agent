@@ -1,4 +1,4 @@
-package org.egg.docagent.pdf2image;
+package org.egg.docagent.ppt2image;
 
 import org.apache.poi.hslf.usermodel.*;
 import org.apache.poi.xslf.usermodel.*;

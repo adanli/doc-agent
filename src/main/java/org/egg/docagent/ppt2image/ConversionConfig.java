@@ -1,4 +1,4 @@
-package org.egg.docagent.pdf2image;
+package org.egg.docagent.ppt2image;
 
 public class ConversionConfig {
     private String outputFormat = "png";

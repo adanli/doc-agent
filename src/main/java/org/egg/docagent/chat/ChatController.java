@@ -1,5 +1,10 @@
 package org.egg.docagent.chat;
 
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
+import com.alibaba.dashscope.common.MultiModalMessage;
+import com.alibaba.dashscope.common.Role;
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -15,30 +20,33 @@ import io.milvus.param.R;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.param.highlevel.dml.InsertRowsParam;
 import org.egg.docagent.entity.FileContent;
+import org.egg.docagent.ossutil.OSSUtil;
+import org.egg.docagent.pdf2image.PPTToImageConverter;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
+@PropertySource(value = "classpath:application.properties", encoding = "UTF-8")
 public class ChatController implements InitializingBean {
     @Value("${spring.ai.openai.base-url}")
     private String baseUrl;
@@ -55,6 +63,8 @@ public class ChatController implements InitializingBean {
     private ChatClient chatClient;
     @Autowired
     private EmbeddingModel embeddingModel;
+    @Autowired
+    private OSSUtil ossUtil;
 
     private static final String DATABASE = "default";
     private static final String COLLECTION = "vector_store";
@@ -65,11 +75,24 @@ public class ChatController implements InitializingBean {
 
     private final List<String> includeSuffix = List
             .of(
-//                    ".docx",".xlsx",".pptx",
-//                    ".doc",".xls",".ppt",
-//                    ".pdf",".txt", ".xmind"
+                    ".docx",".xlsx",".pptx",
+                    ".doc",".xls",".ppt",
+                    ".pdf",".txt", ".xmind",
                     ".pptx"
             );
+
+    private static final String PROMPT = """
+            任务要求：
+                请仔细阅读以下文档内容，并执行以下操作：
+
+                保留原始语义：确保提取的内容忠实反映原文核心信息，不添加主观解释或外部知识。
+                高度浓缩：去除重复、格式符号、页眉页脚、无关修饰语等非实质内容，仅保留对理解文档主题、关键事实、实体和逻辑关系有贡献的文本。
+                结构化输出（可选但推荐）：若文档包含明确结构（如标题、章节、列表、表格），请用简洁的自然语言将其逻辑关系保留下来（例如：“第一章：引言——介绍研究背景与目标”）。
+                输出纯文本：不要使用 Markdown、XML 或其他标记语言，仅输出干净、连贯的中文（或原文语言）段落。
+                长度控制：总输出长度应控制在原文的 20%–40% 之间（若原文极短则可接近 100%），优先保留高频关键词、专有名词、数据、结论和行动项。
+                输出格式：
+                直接输出提炼后的文本内容，不要包含任何解释、前缀（如“提炼结果：”）或后缀。
+            """;
 
     @GetMapping("/ai")
     public Map<String, String> completion(@RequestParam(value = "message", defaultValue = "Tell me a joke") String message, @RequestParam(value = "voice") String voice) {
@@ -269,10 +292,9 @@ public class ChatController implements InitializingBean {
     }
 
     /**
-     * 总结文章内容
+     * 总结普通的文件
      */
-    @PostMapping(value = "summary-file-content")
-    public String summaryFileContent(@RequestParam("path") String path) throws Exception{
+    private void summaryNormalFileContent(String path) throws Exception {
         // 设置文件路径,请根据实际需求修改路径与文件名
         Path filePath = Paths.get(path);
         // 创建文件上传参数
@@ -290,18 +312,7 @@ public class ChatController implements InitializingBean {
                 .addSystemMessage("你是一名专业的文档摘要与信息提取专家。你的任务是从用户提供的文档中精准提取可用于向量检索的核心语义内容，同时最大限度减少冗余和成本。")
                 //请将 '{FILE_ID}'替换为您实际对话场景所使用的 fileid。
                 .addSystemMessage(String.format("fileid://%s", fileObject.id()))
-                .addUserMessage("""
-                        任务要求：
-                        请仔细阅读以下文档内容，并执行以下操作：
-                        
-                        保留原始语义：确保提取的内容忠实反映原文核心信息，不添加主观解释或外部知识。
-                        高度浓缩：去除重复、格式符号、页眉页脚、无关修饰语等非实质内容，仅保留对理解文档主题、关键事实、实体和逻辑关系有贡献的文本。
-                        结构化输出（可选但推荐）：若文档包含明确结构（如标题、章节、列表、表格），请用简洁的自然语言将其逻辑关系保留下来（例如：“第一章：引言——介绍研究背景与目标”）。
-                        输出纯文本：不要使用 Markdown、XML 或其他标记语言，仅输出干净、连贯的中文（或原文语言）段落。
-                        长度控制：总输出长度应控制在原文的 20%–40% 之间（若原文极短则可接近 100%），优先保留高频关键词、专有名词、数据、结论和行动项。
-                        输出格式：
-                        直接输出提炼后的文本内容，不要包含任何解释、前缀（如“提炼结果：”）或后缀。
-                        """)
+                .addUserMessage(PROMPT)
                 .model(model)
                 .build();
 
@@ -354,13 +365,113 @@ public class ChatController implements InitializingBean {
                 }
             });
             System.out.println("success: " + newPath);
-            return "success";
         } catch (Exception e) {
             System.err.println("错误信息：" + e.getMessage());
             System.err.println("请参考文档：https://help.aliyun.com/zh/model-studio/developer-reference/error-code");
             throw e;
         }
+    }
 
+    /**
+     * 总结文章内容
+     */
+    @PostMapping(value = "summary-file-content")
+    public String summaryFileContent(@RequestParam("path") String path) throws Exception{
+        if(path.endsWith(".pptx")) {
+            this.summaryPPTFileContent(path);
+        } else {
+            this.summaryNormalFileContent(path);
+        }
+        return "success";
+    }
+
+    /**
+     * 1. 将PPT转成图片
+     * 2. 使用大模型，解析图片
+     * 3. 将文件夹内图片，解析后合并到一个文件
+     */
+    private void summaryPPTFileContent(String path) {
+        String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
+        String format = "png";
+        String outputDir = String.format("%s/%s_dir", outPath, _p);
+        File file = new File(outputDir);
+        if(!file.exists()) {
+            file.mkdirs();
+        }
+
+        PPTToImageConverter.convertToImages(path, outputDir, format);
+
+        StringBuilder sb = new StringBuilder();
+        String[] files = file.list();
+        FileContent fileContent = new FileContent();
+        this.getBasicFileInfo(path, fileContent);
+
+        for(String f: files) {
+            String p = String.format("%s/%s", outputDir, f);
+            // 上传到oss
+            try {
+                ossUtil.upload(new FileInputStream(p), f);
+            } catch (Exception e) {
+                throw new RuntimeException("上传到oss失败: " + f);
+            }
+
+            String content = this.summaryPicture(f);
+            sb.append(content);
+        }
+        fileContent.setSourceContent(sb.toString());
+
+        String outputFile = String.format("%s/%s.txt", outPath, _p);
+        try {
+            File newFile = new File(outputFile);
+            if(newFile.exists()) {
+                newFile.delete();
+            }
+            if(!newFile.exists()) {
+                newFile.createNewFile();
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("创建文件失败: " + path);
+        }
+
+        try {
+
+            Path p = Paths.get(outputFile);
+            Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
+            // 文件名称
+            Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+            // 创建时间
+            Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+            // 修改时间
+            Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+            if(StringUtils.hasLength(fileContent.getSourceContent())) {
+                Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private void getBasicFileInfo(String path, FileContent fileContent) {
+        int position = path.lastIndexOf('/');
+        String fileName = path.substring(position+1);
+
+        try {
+            BasicFileAttributes attributes = Files.readAttributes(Paths.get(path), BasicFileAttributes.class);
+            long createTime = attributes.creationTime().toMillis();
+            long updateTime = attributes.lastModifiedTime().toMillis();
+            fileContent.setCreateDt(createTime);
+            fileContent.setUpdateDt(updateTime);
+            fileContent.setId(path);
+            fileContent.setFilePath(path);
+            fileContent.setFileName(fileName);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -387,6 +498,34 @@ public class ChatController implements InitializingBean {
         }
 
         System.out.println("完成");
+
+    }
+
+    /**
+     * 识别图片
+     */
+    @PostMapping(value = "/summary-picture")
+    public String summaryPicture(@RequestParam("path") String path) {
+        String imagePath = ossUtil.url(path);
+
+        MultiModalConversation conv = new MultiModalConversation();
+        MultiModalMessage userMessage = MultiModalMessage.builder().role(Role.USER.getValue())
+                .content(Arrays.asList(
+                        Collections.singletonMap("image", imagePath),
+                        Collections.singletonMap("text", PROMPT))).build();
+        MultiModalConversationParam param = MultiModalConversationParam.builder()
+                // 若没有配置环境变量，请用百炼API Key将下行替换为：.apiKey("sk-xxx")
+                .apiKey(sk)
+                .model(model)
+                .message(userMessage)
+                .build();
+        try {
+            MultiModalConversationResult result = conv.call(param);
+            return result.getOutput().getChoices().get(0).getMessage().getContent().get(0).get("text")+"";
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
     }
 

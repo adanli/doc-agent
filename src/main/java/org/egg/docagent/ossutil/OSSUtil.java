@@ -55,7 +55,7 @@ public class OSSUtil implements InitializingBean {
      */
     public String url(String path) {
         try {
-            URL url = ossClient.generatePresignedUrl(bucket, path, new Date(expireTime));
+            URL url = ossClient.generatePresignedUrl(bucket, path, new Date(new Date().getTime() + expireTime));
             return url.toString();
 
         } catch (Exception e) {

@@ -2,6 +2,9 @@ package org.egg.docagent.entity;
 
 import lombok.Data;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 
 @Data
 public class FileContent {
@@ -76,5 +79,32 @@ public class FileContent {
 
     public void setExistContent(Boolean existContent) {
         this.existContent = existContent;
+    }
+
+    @Override
+    public String toString() {
+        return "FileContent{" +
+                "id='" + id + '\'' +
+                ", fileName='" + fileName + '\'' +
+                ", createDt=" + createDt +
+                ", updateDt=" + updateDt +
+                ", filePath='" + filePath + '\'' +
+                ", fileContent=" + Arrays.toString(fileContent) +
+                ", sourceContent='" + sourceContent + '\'' +
+                ", existContent=" + existContent +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) return true;
+        if (object == null || getClass() != object.getClass()) return false;
+        FileContent that = (FileContent) object;
+        return Objects.equals(id, that.id) && Objects.equals(fileName, that.fileName) && Objects.equals(createDt, that.createDt) && Objects.equals(updateDt, that.updateDt) && Objects.equals(filePath, that.filePath) && Objects.deepEquals(fileContent, that.fileContent) && Objects.equals(sourceContent, that.sourceContent) && Objects.equals(existContent, that.existContent);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, fileName, createDt, updateDt, filePath, Arrays.hashCode(fileContent), sourceContent, existContent);
     }
 }

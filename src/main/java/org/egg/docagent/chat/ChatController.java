@@ -254,8 +254,6 @@ public class ChatController implements InitializingBean {
             }
         } else {
             if(isIncludeFile(file.getName())) {
-//                String absolutePath = file.getAbsolutePath();
-//                list.add(String.format("%s/%s", absolutePath, file.getName()));
                 list.add(dir);
             }
         }
@@ -291,7 +289,6 @@ public class ChatController implements InitializingBean {
         ChatCompletionCreateParams chatParams = ChatCompletionCreateParams.builder()
                 .addSystemMessage("你是一名专业的文档摘要与信息提取专家。你的任务是从用户提供的文档中精准提取可用于向量检索的核心语义内容，同时最大限度减少冗余和成本。")
                 //请将 '{FILE_ID}'替换为您实际对话场景所使用的 fileid。
-//                .addSystemMessage("fileid://{FILE_ID}")
                 .addSystemMessage(String.format("fileid://%s", fileObject.id()))
                 .addUserMessage("""
                         任务要求：
@@ -310,7 +307,6 @@ public class ChatController implements InitializingBean {
 
         String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
         String newPath = String.format("%s/%s.txt", outPath, _p);
-//        String newPath = String.format("%s/%s.txt", outPath, path.replaceAll("/", "_").replaceAll(":","_").replaceAll("\\","_"));
         Path p = Paths.get(newPath);
         if(!Files.exists(p)) {
             try {
@@ -346,7 +342,6 @@ public class ChatController implements InitializingBean {
         try (StreamResponse<ChatCompletionChunk> streamResponse = openAIClient.chat().completions().createStreaming(chatParams)) {
             streamResponse.stream().forEach(chunk -> {
                 // 打印每个 chunk 的内容并拼接
-//                System.out.println(chunk);
                 String content = chunk.choices().get(0).delta().content().orElse("");
                 if (!content.isEmpty()) {
 //                    fullResponse.append(content);

@@ -21,6 +21,7 @@ import io.milvus.param.dml.SearchParam;
 import io.milvus.param.highlevel.dml.InsertRowsParam;
 import org.egg.docagent.entity.FileContent;
 import org.egg.docagent.ossutil.OSSUtil;
+import org.egg.docagent.pdf2image.PDFToImageConverter;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
 import org.egg.docagent.word2image.WordToImageConverter;
 import org.springframework.ai.chat.client.ChatClient;
@@ -59,6 +60,8 @@ public class ChatController implements InitializingBean {
     private String basePath;
     @Value("${spring.ai.openai.chat.options.model}")
     private String model;
+    @Value("${spring.ai.openai.chat.options.pic.model}")
+    private String picModel;
 
     @Autowired
     private ChatClient chatClient;
@@ -77,7 +80,7 @@ public class ChatController implements InitializingBean {
     private final List<String> includeSuffix = List
             .of(
                     ".docx",".xlsx",".pptx",
-                    ".doc",".xls",".ppt",
+//                    ".doc",".xls",".ppt",
                     ".pdf",".txt", ".xmind",
                     ".pptx"
             );
@@ -386,6 +389,8 @@ public class ChatController implements InitializingBean {
             this.summaryPPTFileContent(path);
         } else if(path.endsWith(".docx")) {
             this.summaryWordFileContent(path);
+        }  else if(path.endsWith(".pdf")) {
+            this.summaryPDFFileContent(path);
         } else {
             this.summaryNormalFileContent(path);
         }
@@ -546,6 +551,83 @@ public class ChatController implements InitializingBean {
 
     }
 
+    /**
+     * 1. 将PDF转成图片
+     * 2. 使用大模型，解析图片
+     * 3. 将文件夹内图片，解析后合并到一个文件
+     */
+    private void summaryPDFFileContent(String path) {
+        String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
+        String format = "png";
+        String outputDir = String.format("%s/%s_dir", outPath, _p);
+        File file = new File(outputDir);
+        if(!file.exists()) {
+            file.mkdirs();
+        }
+
+        try {
+            PDFToImageConverter.convertToImages(path, outputDir, format);
+
+            StringBuilder sb = new StringBuilder();
+            String[] files = file.list();
+            FileContent fileContent = new FileContent();
+            this.getBasicFileInfo(path, fileContent);
+
+            for(String f: files) {
+                String p = String.format("%s/%s", outputDir, f);
+                // 上传到oss
+                try {
+                    ossUtil.upload(new FileInputStream(p), f);
+                } catch (Exception e) {
+                    throw new RuntimeException("上传到oss失败: " + f);
+                }
+
+                String content = this.summaryPicture(f);
+                sb.append(content);
+            }
+            fileContent.setSourceContent(sb.toString());
+
+            String outputFile = String.format("%s/%s.txt", outPath, _p);
+            try {
+                File newFile = new File(outputFile);
+                if(newFile.exists()) {
+                    newFile.delete();
+                }
+                if(!newFile.exists()) {
+                    newFile.createNewFile();
+                }
+
+            } catch (Exception e) {
+                throw new RuntimeException("创建文件失败: " + path);
+            }
+
+            try {
+
+                Path p = Paths.get(outputFile);
+                Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
+                // 文件名称
+                Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+                // 创建时间
+                Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                // 修改时间
+                Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+
+                if(StringUtils.hasLength(fileContent.getSourceContent())) {
+                    Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        } finally {
+            clearDir(file);
+        }
+
+
+    }
+
     private void clearDir(File file) {
         if(!file.isDirectory()) return;
 
@@ -626,7 +708,7 @@ public class ChatController implements InitializingBean {
         MultiModalConversationParam param = MultiModalConversationParam.builder()
                 // 若没有配置环境变量，请用百炼API Key将下行替换为：.apiKey("sk-xxx")
                 .apiKey(sk)
-                .model(model)
+                .model(picModel)
                 .message(userMessage)
                 .build();
         try {

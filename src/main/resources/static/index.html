@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能数据查询系统</title>
+    <style>
+        :root {
+            --primary-color: #00f7ff;
+            --secondary-color: #00a2ff;
+            --dark-bg: #0a0e17;
+            --card-bg: #131a2a;
+            --text-color: #e0e0e0;
+            --table-header: #1a2436;
+            --table-row: #1e2a40;
+            --table-row-alt: #182235;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-color);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 247, 255, 0.05) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(0, 162, 255, 0.05) 0%, transparent 20%);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 15px rgba(0, 247, 255, 0.3);
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            color: #8a9bb8;
+            margin-bottom: 30px;
+        }
+
+        .search-container {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 247, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .search-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+
+        .search-box {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 15px 20px;
+            background: rgba(10, 14, 23, 0.7);
+            border: 1px solid rgba(0, 247, 255, 0.3);
+            border-radius: 8px;
+            color: var(--text-color);
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(0, 247, 255, 0.2);
+        }
+
+        .search-btn {
+            padding: 15px 30px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            border-radius: 8px;
+            color: var(--dark-bg);
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 247, 255, 0.4);
+        }
+
+        .results-container {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(0, 247, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .results-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .results-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .results-count {
+            background: rgba(0, 247, 255, 0.1);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            border: 1px solid rgba(0, 247, 255, 0.2);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+        }
+
+        th {
+            background-color: var(--table-header);
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--primary-color);
+            border-bottom: 2px solid rgba(0, 247, 255, 0.3);
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        tr {
+            background-color: var(--table-row);
+            transition: background-color 0.2s ease;
+        }
+
+        tr:nth-child(even) {
+            background-color: var(--table-row-alt);
+        }
+
+        tr:hover {
+            background-color: rgba(0, 247, 255, 0.05);
+        }
+
+        .subject {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .path {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #8a9bb8;
+        }
+
+        .probability {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .probability.high {
+            background: rgba(0, 255, 136, 0.15);
+            color: #00ff88;
+        }
+
+        .probability.medium {
+            background: rgba(255, 204, 0, 0.15);
+            color: #ffcc00;
+        }
+
+        .probability.low {
+            background: rgba(255, 77, 77, 0.15);
+            color: #ff4d4d;
+        }
+
+        .summary {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(0, 247, 255, 0.2);
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #8a9bb8;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: rgba(0, 247, 255, 0.3);
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            color: #8a9bb8;
+            font-size: 0.9rem;
+            margin-top: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .search-box {
+                flex-direction: column;
+            }
+
+            .search-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>智能数据查询系统</h1>
+            <p class="subtitle">输入关键字，获取相关性最高的匹配结果</p>
+        </header>
+
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" class="search-input" id="searchInput" placeholder="请输入查询关键字..." autocomplete="off">
+                <button class="search-btn" id="searchBtn">
+                    <span>搜索</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="results-container">
+            <div class="results-header">
+                <h2 class="results-title">查询结果</h2>
+                <div class="results-count" id="resultsCount">共 0 条记录</div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在搜索中，请稍候...</p>
+            </div>
+
+            <div class="table-container">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>主题</th>
+                            <th>名称</th>
+                            <th>路径</th>
+                            <th>创建时间</th>
+                            <th>修改时间</th>
+                            <th>摘要信息</th>
+                            <th>匹配概率</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                        <!-- 结果将通过JavaScript动态添加 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="empty-state" id="emptyState">
+                <i>🔍</i>
+                <h3>暂无查询结果</h3>
+                <p>请输入关键字进行搜索</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>© 2023 智能数据查询系统 | 科技驱动未来</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('searchInput');
+            const searchBtn = document.getElementById('searchBtn');
+            const resultsBody = document.getElementById('resultsBody');
+            const resultsCount = document.getElementById('resultsCount');
+            const loading = document.getElementById('loading');
+            const emptyState = document.getElementById('emptyState');
+
+            // 模拟数据
+            const mockData = [
+                {
+                    subject: "人工智能技术发展报告",
+                    name: "AI_Report_2023",
+                    path: "/documents/technology/AI_Report_2023.pdf",
+                    createTime: "2023-05-12 14:30:25",
+                    modifyTime: "2023-08-20 09:15:42",
+                    summary: "本报告详细分析了2023年人工智能领域的最新发展动态，包括机器学习、自然语言处理和计算机视觉等关键技术进展。",
+                    probability: 0.95
+                },
+                {
+                    subject: "区块链技术应用白皮书",
+                    name: "Blockchain_Whitepaper",
+                    path: "/documents/technology/Blockchain_Whitepaper.docx",
+                    createTime: "2023-03-18 10:22:15",
+                    modifyTime: "2023-07-05 16:45:30",
+                    summary: "探讨区块链技术在金融、供应链和数字身份等领域的应用前景与挑战。",
+                    probability: 0.87
+                },
+                {
+                    subject: "云计算架构设计方案",
+                    name: "Cloud_Architecture_Design",
+                    path: "/documents/technology/Cloud_Architecture_Design.pptx",
+                    createTime: "2023-06-05 09:15:33",
+                    modifyTime: "2023-09-12 11:20:18",
+                    summary: "详细介绍了基于微服务架构的云计算平台设计，包括容器化部署和自动扩展方案。",
+                    probability: 0.82
+                },
+                {
+                    subject: "大数据分析平台技术文档",
+                    name: "BigData_Platform_Docs",
+                    path: "/documents/technology/BigData_Platform_Docs.pdf",
+                    createTime: "2023-02-14 13:45:22",
+                    modifyTime: "2023-08-30 14:33:07",
+                    summary: "大数据分析平台的技术架构、数据处理流程和性能优化策略。",
+                    probability: 0.78
+                },
+                {
+                    subject: "物联网安全防护指南",
+                    name: "IoT_Security_Guide",
+                    path: "/documents/technology/IoT_Security_Guide.docx",
+                    createTime: "2023-04-22 16:20:45",
+                    modifyTime: "2023-10-05 10:12:28",
+                    summary: "针对物联网设备的安全威胁分析及防护措施，包括加密通信和设备认证。",
+                    probability: 0.75
+                },
+                {
+                    subject: "5G网络技术规范",
+                    name: "5G_Technical_Specification",
+                    path: "/documents/technology/5G_Technical_Specification.pdf",
+                    createTime: "2023-01-10 11:05:18",
+                    modifyTime: "2023-07-28 15:40:55",
+                    summary: "5G网络的技术标准、频谱分配和网络架构设计规范。",
+                    probability: 0.72
+                },
+                {
+                    subject: "量子计算研究进展",
+                    name: "Quantum_Computing_Research",
+                    path: "/documents/technology/Quantum_Computing_Research.pdf",
+                    createTime: "2023-03-30 14:18:32",
+                    modifyTime: "2023-09-15 17:25:40",
+                    summary: "量子计算领域的最新研究进展，包括量子算法和量子硬件的发展。",
+                    probability: 0.68
+                },
+                {
+                    subject: "边缘计算技术应用",
+                    name: "Edge_Computing_Applications",
+                    path: "/documents/technology/Edge_Computing_Applications.docx",
+                    createTime: "2023-05-08 10:55:12",
+                    modifyTime: "2023-08-25 13:30:25",
+                    summary: "边缘计算在智能制造、智慧城市和自动驾驶等场景中的应用案例。",
+                    probability: 0.65
+                },
+                {
+                    subject: "深度学习模型优化",
+                    name: "Deep_Learning_Optimization",
+                    path: "/documents/technology/Deep_Learning_Optimization.pdf",
+                    createTime: "2023-02-28 15:40:33",
+                    modifyTime: "2023-10-10 09:45:18",
+                    summary: "深度学习模型的训练优化技巧，包括梯度下降算法和正则化方法。",
+                    probability: 0.62
+                },
+                {
+                    subject: "数字化转型战略规划",
+                    name: "Digital_Transformation_Strategy",
+                    path: "/documents/technology/Digital_Transformation_Strategy.pptx",
+                    createTime: "2023-04-05 12:25:47",
+                    modifyTime: "2023-09-28 16:15:22",
+                    summary: "企业数字化转型的战略框架、实施路径和成功案例分析。",
+                    probability: 0.58
+                }
+            ];
+
+            // 搜索功能
+            searchBtn.addEventListener('click', performSearch);
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    performSearch();
+                }
+            });
+
+            function performSearch() {
+                const keyword = searchInput.value.trim();
+
+                if (!keyword) {
+                    alert('请输入搜索关键字');
+                    return;
+                }
+
+                // 显示加载状态
+                loading.style.display = 'block';
+                resultsBody.innerHTML = '';
+                emptyState.style.display = 'none';
+
+                // 模拟API请求延迟
+                setTimeout(() => {
+                    // 过滤数据（在实际应用中，这里应该是API调用）
+                    const filteredData = mockData.filter(item =>
+                        item.subject.toLowerCase().includes(keyword.toLowerCase()) ||
+                        item.name.toLowerCase().includes(keyword.toLowerCase()) ||
+                        item.summary.toLowerCase().includes(keyword.toLowerCase())
+                    );
+
+                    // 更新结果计数
+                    resultsCount.textContent = `共 ${filteredData.length} 条记录`;
+
+                    // 渲染结果
+                    renderResults(filteredData);
+
+                    // 隐藏加载状态
+                    loading.style.display = 'none';
+
+                    // 如果没有结果，显示空状态
+                    if (filteredData.length === 0) {
+                        emptyState.style.display = 'block';
+                    }
+                }, 1000);
+            }
+
+            function renderResults(data) {
+                resultsBody.innerHTML = '';
+
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+
+                    // 根据概率设置样式类
+                    let probabilityClass = 'low';
+                    if (item.probability >= 0.8) {
+                        probabilityClass = 'high';
+                    } else if (item.probability >= 0.6) {
+                        probabilityClass = 'medium';
+                    }
+
+                    row.innerHTML = `
+                        <td class="subject">${item.subject}</td>
+                        <td>${item.name}</td>
+                        <td class="path">${item.path}</td>
+                        <td>${item.createTime}</td>
+                        <td>${item.modifyTime}</td>
+                        <td class="summary">${item.summary}</td>
+                        <td><span class="probability ${probabilityClass}">${(item.probability * 100).toFixed(1)}%</span></td>
+                    `;
+
+                    resultsBody.appendChild(row);
+                });
+            }
+
+            // 初始状态显示空状态
+            emptyState.style.display = 'block';
+        });
+    </script>
+</body>
+</html>

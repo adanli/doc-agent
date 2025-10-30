@@ -23,6 +23,7 @@ import io.milvus.param.dml.SearchParam;
 import io.milvus.param.highlevel.dml.InsertRowsParam;
 import io.milvus.response.QueryResultsWrapper;
 import org.egg.docagent.entity.FileContent;
+import org.egg.docagent.minio.MinIOUtil;
 import org.egg.docagent.ossutil.OSSUtil;
 import org.egg.docagent.pdf2image.PDFToImageConverter;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
@@ -43,7 +44,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.*;
@@ -73,6 +73,8 @@ public class ChatController implements InitializingBean {
     private EmbeddingModel embeddingModel;
     @Autowired
     private OSSUtil ossUtil;
+    @Autowired
+    private MinIOUtil minIOUtil;
 
     private static final String DATABASE = "default";
     private static final String COLLECTION = "vector_store";
@@ -284,6 +286,8 @@ public class ChatController implements InitializingBean {
             long s1 = System.currentTimeMillis();
             try {
                 // 如果该文件存在，则跳过不处理
+                file = file.replaceAll("\\\\", "/");
+
                 FileContent content = this.findById(file);
                 if(content != null) {
                     skipCount++;
@@ -453,14 +457,16 @@ public class ChatController implements InitializingBean {
                 String p = String.format("%s/%s", outputDir, f);
                 // 上传到oss
                 try {
-                    ossUtil.upload(new FileInputStream(p), f);
+                    minIOUtil.upload(p, f);
+//                    ossUtil.upload(new FileInputStream(p), f);
                 } catch (Exception e) {
                     throw new RuntimeException("上传到oss失败: " + f);
                 }
 
                 String content = this.summaryPicture(f);
                 sb.append(content);
-                ossUtil.delete(f);
+                minIOUtil.delete(f);
+//                ossUtil.delete(f);
             }
             fileContent.setSourceContent(sb.toString());
 
@@ -531,14 +537,16 @@ public class ChatController implements InitializingBean {
                 String p = String.format("%s/%s", outputDir, f);
                 // 上传到oss
                 try {
-                    ossUtil.upload(new FileInputStream(p), f);
+                    minIOUtil.upload(p, f);
+//                    ossUtil.upload(new FileInputStream(p), f);
                 } catch (Exception e) {
                     throw new RuntimeException("上传到oss失败: " + f);
                 }
 
                 String content = this.summaryPicture(f);
                 sb.append(content);
-                ossUtil.delete(f);
+                minIOUtil.delete(f);
+//                ossUtil.delete(f);
             }
             fileContent.setSourceContent(sb.toString());
 
@@ -609,14 +617,16 @@ public class ChatController implements InitializingBean {
                 String p = String.format("%s/%s", outputDir, f);
                 // 上传到oss
                 try {
-                    ossUtil.upload(new FileInputStream(p), f);
+                    minIOUtil.upload(p, f);
+//                    ossUtil.upload(new FileInputStream(p), f);
                 } catch (Exception e) {
                     throw new RuntimeException("上传到oss失败: " + f);
                 }
 
                 String content = this.summaryPicture(f);
                 sb.append(content);
-                ossUtil.delete(f);
+                minIOUtil.delete(f);
+//                ossUtil.delete(f);
             }
             fileContent.setSourceContent(sb.toString());
 
@@ -745,7 +755,8 @@ public class ChatController implements InitializingBean {
      */
     @PostMapping(value = "/summary-picture")
     public String summaryPicture(@RequestParam("path") String path) {
-        String imagePath = ossUtil.url(path);
+        String imagePath = minIOUtil.url(path);
+//        String imagePath = ossUtil.url(path);
 
         MultiModalConversation conv = new MultiModalConversation();
         MultiModalMessage userMessage = MultiModalMessage.builder().role(Role.USER.getValue())
@@ -822,5 +833,8 @@ public class ChatController implements InitializingBean {
 
         return content;
     }
+
+
+
 
 }

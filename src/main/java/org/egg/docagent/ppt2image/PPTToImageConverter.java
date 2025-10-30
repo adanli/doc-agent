@@ -126,11 +126,16 @@ public class PPTToImageConverter {
             graphics.setColor(Color.WHITE);
             graphics.fill(new Rectangle(0, 0, width, height));
 
+            String fileName = String.format("slide_%03d.%s", slideNumber, format);
+
             // 绘制幻灯片内容
-            slide.draw(graphics);
+            try {
+                slide.draw(graphics);
+            } catch (Exception e) {
+                System.err.println("绘制幻灯片存在问题: " + String.format("%s/%s", outputDir, fileName));
+            }
 
             // 保存图片
-            String fileName = String.format("slide_%03d.%s", slideNumber, format);
             File outputFile = new File(outputDir, fileName);
             ImageIO.write(img, format, outputFile);
 

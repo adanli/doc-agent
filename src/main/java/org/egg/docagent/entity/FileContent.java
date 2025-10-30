@@ -16,6 +16,15 @@ public class FileContent {
     private float[] fileContent;
     private String  sourceContent;
     private Boolean existContent;
+    private int version = 1;
+
+    public int getVersion() {
+        return version;
+    }
+
+    public void setVersion(int version) {
+        this.version = version;
+    }
 
     public String getId() {
         return id;

@@ -35,4 +35,10 @@ public class OSSController {
         return ossUtil.list();
     }
 
+    @PostMapping(value = "/oss-delete")
+    public String delete(@RequestParam("path") String path) {
+        ossUtil.delete(path);
+        return "success";
+    }
+
 }

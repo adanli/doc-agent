@@ -14,11 +14,14 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.*;
 import io.milvus.client.MilvusServiceClient;
+import io.milvus.grpc.QueryResults;
 import io.milvus.grpc.SearchResults;
 import io.milvus.param.MetricType;
 import io.milvus.param.R;
+import io.milvus.param.dml.QueryParam;
 import io.milvus.param.dml.SearchParam;
 import io.milvus.param.highlevel.dml.InsertRowsParam;
+import io.milvus.response.QueryResultsWrapper;
 import org.egg.docagent.entity.FileContent;
 import org.egg.docagent.ossutil.OSSUtil;
 import org.egg.docagent.pdf2image.PDFToImageConverter;
@@ -32,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -79,10 +83,15 @@ public class ChatController implements InitializingBean {
 
     private final List<String> includeSuffix = List
             .of(
-                    ".docx",".xlsx",".pptx",
-//                    ".doc",".xls",".ppt",
-                    ".pdf",".txt", ".xmind",
-                    ".pptx"
+                    ".docx",
+//                    ".xlsx",
+                    ".pptx",
+//                    ".doc",
+//                    ".xls",
+//                    ".ppt",
+                    ".pdf",
+                    ".txt"
+//                    ".xmind",
             );
 
     private static final String PROMPT = """
@@ -254,19 +263,27 @@ public class ChatController implements InitializingBean {
         int total = files.size();
         int successCount = 0;
         int errorCount = 0;
+        int skipCount = 0;
 
         long start = System.currentTimeMillis();
 
         for (String file: files) {
             long s1 = System.currentTimeMillis();
             try {
+                // 如果该文件存在，则跳过不处理
+                FileContent content = this.findById(file);
+                if(content != null) {
+                    skipCount++;
+                    continue;
+                }
+
                 summaryFileContent(file);
                 successCount++;
             } catch (Exception e) {
                 e.printStackTrace();
                 errorCount++;
             }
-            System.out.printf("%s文件解析完成，耗时: %ss，成功进度: %d/%d, 失败进度: %d/%d%n", file, (System.currentTimeMillis()-s1)/1000, successCount, total, errorCount, total);
+            System.out.printf("%s文件解析完成，耗时: %ss，成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", file, (System.currentTimeMillis()-s1)/1000, successCount, total, errorCount, total, skipCount, total);
         }
 
         System.out.printf("整体耗时: %ss%n", (System.currentTimeMillis()-start)/1000);
@@ -430,6 +447,7 @@ public class ChatController implements InitializingBean {
 
                 String content = this.summaryPicture(f);
                 sb.append(content);
+                ossUtil.delete(f);
             }
             fileContent.setSourceContent(sb.toString());
 
@@ -507,6 +525,7 @@ public class ChatController implements InitializingBean {
 
                 String content = this.summaryPicture(f);
                 sb.append(content);
+                ossUtil.delete(f);
             }
             fileContent.setSourceContent(sb.toString());
 
@@ -584,6 +603,7 @@ public class ChatController implements InitializingBean {
 
                 String content = this.summaryPicture(f);
                 sb.append(content);
+                ossUtil.delete(f);
             }
             fileContent.setSourceContent(sb.toString());
 
@@ -680,6 +700,14 @@ public class ChatController implements InitializingBean {
 
         int count = 0;
         for (String f: files) {
+//            if(f.startsWith(".")) continue;
+            String path = String.format("%s/%s", outPath, f);
+//            File fil = new File(path);
+//            if(fil.isDirectory()) {
+//                continue;
+//            }
+            if(!path.endsWith(".txt")) continue;
+
             try {
                 this.saveIntoMilvus(String.format("%s/%s", outPath, f));
                 count++;
@@ -726,6 +754,54 @@ public class ChatController implements InitializingBean {
         new ChatController().clearDir(new File(path1));
         String path2 = "/Users/adan/doc_out/_Users_adan_Documents_test_附件4：部门工作总结复盘-架构办.pptx_dir";
         new ChatController().clearDir(new File(path2));
+    }
+
+    /**
+     * 根据主键（文件目录）查询，是否在向量库中存在
+     */
+    @GetMapping(value = "/find-by-id")
+    public FileContent findById(@RequestParam(value = "id") String id) {
+//        QueryReq req = QueryReq.builder()
+//                .databaseName(DATABASE)
+//                .collectionName(COLLECTION)
+//                .filter(String.format("id = \"%s\"", id))
+//                .limit(5)
+//                .build();
+        QueryParam param = QueryParam.newBuilder()
+                .withDatabaseName(DATABASE)
+                .withCollectionName(COLLECTION)
+                .withExpr(String.format("id == \"%s\"", id))
+                .withOutFields(List.of("id", "file_name", "create_dt", "update_dt", "file_path", "file_content", "source_content", "exist_content", "version"))
+                .withLimit(5L)
+                .build();
+        R<QueryResults> r = milvusServiceClient.query(param);
+
+        if(r.getData() == null) return null;
+
+        QueryResultsWrapper wrapper = new QueryResultsWrapper(r.getData());
+        List<QueryResultsWrapper.RowRecord> list = wrapper.getRowRecords();
+
+        if(CollectionUtils.isEmpty(list)) return null;
+        QueryResultsWrapper.RowRecord record = list.get(0);
+
+        FileContent content = new FileContent();
+        if(!ObjectUtils.isEmpty(record.get("id"))) {
+            content.setId(record.get("id")+"");
+        }
+        if(!ObjectUtils.isEmpty(record.get("file_name"))) {
+            content.setFileName(record.get("file_name")+"");
+        }
+        if(!ObjectUtils.isEmpty(record.get("create_dt"))) {
+            content.setCreateDt(Long.parseLong(record.get("create_dt")+""));
+        }
+        if(!ObjectUtils.isEmpty(record.get("update_dt"))) {
+            content.setUpdateDt(Long.parseLong(record.get("update_dt")+""));
+        }
+        if(!ObjectUtils.isEmpty(record.get("version"))) {
+            content.setVersion(Integer.parseInt(record.get("version")+""));
+        }
+
+        return content;
     }
 
 }

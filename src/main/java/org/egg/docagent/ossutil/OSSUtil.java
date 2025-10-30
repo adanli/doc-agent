@@ -74,6 +74,10 @@ public class OSSUtil implements InitializingBean {
         return list.stream().map(OSSObjectSummary::getKey).toList();
     }
 
+    public void delete(String path) {
+        ossClient.deleteObject(bucket, path);
+    }
+
     @Override
     public void afterPropertiesSet() throws Exception {
         ClientBuilderConfiguration configuration;

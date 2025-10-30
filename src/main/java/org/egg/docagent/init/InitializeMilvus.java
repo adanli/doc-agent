@@ -121,6 +121,15 @@ public class InitializeMilvus {
                         .build()
         );
 
+        // 版本
+        schema.addField(
+                AddFieldReq.builder()
+                        .fieldName("version")
+                        .dataType(DataType.Int16)
+                        .description("版本")
+                        .build()
+        );
+
         collectionReq.setCollectionSchema(schema);
 
         client.createCollection(collectionReq);

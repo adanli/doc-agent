@@ -1,15 +1,15 @@
 package org.egg.docagent.minio;
 
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.MinioClient;
-import io.minio.RemoveObjectArgs;
-import io.minio.UploadObjectArgs;
+import io.minio.*;
 import io.minio.http.Method;
 import io.minio.messages.Bucket;
+import org.egg.docagent.util.ImageCompressor;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,7 +41,12 @@ public class MinIOUtil implements InitializingBean {
      * 上传
      */
     public void upload(String filePath, String uploadPath) {
+        String format = ImageCompressor.getImageFormat(filePath);
+
         try {
+//            byte[] imageData = ImageCompressor.compressWithThumbnailator(new FileInputStream(filePath), format, 800, 800, 0.8);
+//            ByteArrayInputStream compressedStream = new ByteArrayInputStream(imageData);
+
             client.uploadObject(
                     UploadObjectArgs.builder()
                             .bucket(bucket)
@@ -49,6 +54,13 @@ public class MinIOUtil implements InitializingBean {
                             .object(uploadPath)
                             .build()
             );
+
+            /*client.putObject(PutObjectArgs.builder()
+                .bucket(bucket)
+                .object(uploadPath)
+                .stream(compressedStream, imageData.length, -1)
+                .contentType("image/png")
+                .build());*/
 
         } catch (Exception e) {
             e.printStackTrace();

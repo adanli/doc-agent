@@ -126,8 +126,8 @@ public class ChatController implements InitializingBean {
     private OpenAIClient openAIClient;
 
     @GetMapping(value = "/save-info-milvus")
-    public String saveIntoMilvus(String path) {
-        FileContent fileContent = getFileContent(path);
+    public String saveIntoMilvus(FileContent fileContent) {
+//        FileContent fileContent = getFileContent(path);
 
         List<JsonObject> list = new ArrayList<>();
         list.add(gson.fromJson(gson.toJson(fileContent), JsonObject.class));
@@ -142,7 +142,7 @@ public class ChatController implements InitializingBean {
         return "success";
     }
 
-    private FileContent getFileContent(String path) {
+    public FileContent getFileContent(String path) {
         try {
             List<String> list = Files.readAllLines(Paths.get(path));
             if(CollectionUtils.isEmpty(list)) throw new RuntimeException(path + "文件为空");
@@ -191,8 +191,21 @@ public class ChatController implements InitializingBean {
     }
 
     private float[] embedding(String content) {
-        EmbeddingResponse response = this.embeddingModel.embedForResponse(List.of(content));
-        return response.getResult().getOutput();
+        try {
+            EmbeddingResponse response = this.embeddingModel.embedForResponse(List.of(content));
+            return response.getResult().getOutput();
+        } catch (Exception e) {
+//            return null;
+            // 如果超过长度，只保留前4行
+            StringBuilder sb = new StringBuilder();
+            String[] contents = content.split("\n");
+            sb.append(contents[0]);
+            sb.append(contents[1]);
+            sb.append(contents[2]);
+            sb.append(contents[3]);
+            EmbeddingResponse response = this.embeddingModel.embedForResponse(List.of(sb.toString()));
+            return response.getResult().getOutput();
+        }
     }
 
     /**
@@ -698,23 +711,29 @@ public class ChatController implements InitializingBean {
         if(files == null) return;
         System.out.printf("合计文件数量: %d%n", files.length);
 
-        int count = 0;
+        int successCount = 0;
+        int errorCount = 0;
+        int skipCount = 0;
         for (String f: files) {
-//            if(f.startsWith(".")) continue;
             String path = String.format("%s/%s", outPath, f);
-//            File fil = new File(path);
-//            if(fil.isDirectory()) {
-//                continue;
-//            }
             if(!path.endsWith(".txt")) continue;
 
-            try {
-                this.saveIntoMilvus(String.format("%s/%s", outPath, f));
-                count++;
-                System.out.printf("完成%d/%d: %s%n", count, files.length, f);
-            } catch (Exception e) {
-                System.err.printf("异常%d/%d: %s%n", count, files.length, f);
+            FileContent fileContent = getFileContent(String.format("%s/%s", outPath, f));
+            String id = fileContent.getId();
+            FileContent existContent = this.findById(id);
+            if(existContent != null) {
+                skipCount++;
+            } else {
+                try {
+                    this.saveIntoMilvus(fileContent);
+                    successCount++;
+                } catch (Exception e) {
+                    errorCount++;
+                }
             }
+
+            System.out.printf("%s --- 成功: %d/%d, 失败: %d/%d, 跳过: %d/%d%n", f, successCount, files.length, errorCount, files.length, skipCount, files.length);
+
         }
 
         System.out.println("完成");

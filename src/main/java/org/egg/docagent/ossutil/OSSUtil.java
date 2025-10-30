@@ -32,6 +32,8 @@ public class OSSUtil implements InitializingBean {
     private String bucket;
     @Value("${oss-expire-time}")
     private long expireTime;
+    @Value("${oss-prefix}")
+    private String prefix;
 
     private OSS ossClient;
 
@@ -40,6 +42,7 @@ public class OSSUtil implements InitializingBean {
      * 上传文件
      */
     public void upload(InputStream inputStream, String path) {
+        path = String.format("%s/%s", prefix, path);
         try {
             PutObjectRequest request = new PutObjectRequest(bucket, path, inputStream);
             PutObjectResult result = ossClient.putObject(request);
@@ -54,6 +57,7 @@ public class OSSUtil implements InitializingBean {
      * 获取文件的下载URL
      */
     public String url(String path) {
+        path = String.format("%s/%s", prefix, path);
         try {
             URL url = ossClient.generatePresignedUrl(bucket, path, new Date(new Date().getTime() + expireTime));
             return url.toString();
@@ -75,6 +79,7 @@ public class OSSUtil implements InitializingBean {
     }
 
     public void delete(String path) {
+        path = String.format("%s/%s", prefix, path);
         ossClient.deleteObject(bucket, path);
     }
 
@@ -83,11 +88,17 @@ public class OSSUtil implements InitializingBean {
         ClientBuilderConfiguration configuration;
         configuration = new ClientBuilderConfiguration();
         configuration.setSignatureVersion(SignVersion.V4);
+
+//        configuration.setProxyHost("prod-basicmodel-oss.oss-cn-shanghai-finance-1-internal.aliyuncs.com");
+//        configuration.setProxyPort(80);
+
         ossClient = OSSClientBuilder.create()
                 .endpoint(endpoint)
                 .region(region)
                 .credentialsProvider(new DefaultCredentialProvider(ak, sk))
                 .clientConfiguration(configuration)
                 .build();
+
+        System.out.println();
     }
 }

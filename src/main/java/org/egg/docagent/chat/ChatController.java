@@ -97,8 +97,8 @@ public class ChatController implements InitializingBean {
 //                    ".doc",
 //                    ".xls",
 //                    ".ppt",
-                    ".pdf",
-                    ".txt"
+                    ".pdf"
+//                    ".txt"
 //                    ".xmind",
             );
 
@@ -110,7 +110,7 @@ public class ChatController implements InitializingBean {
                 高度浓缩：去除重复、格式符号、页眉页脚、无关修饰语等非实质内容，仅保留对理解文档主题、关键事实、实体和逻辑关系有贡献的文本。
                 结构化输出（可选但推荐）：若文档包含明确结构（如标题、章节、列表、表格），请用简洁的自然语言将其逻辑关系保留下来（例如：“第一章：引言——介绍研究背景与目标”）。
                 输出纯文本：不要使用 Markdown、XML 或其他标记语言，仅输出干净、连贯的中文（或原文语言）段落。
-                长度控制：总输出长度应控制在原文的 20%–40% 之间（若原文极短则可接近 100%），优先保留高频关键词、专有名词、数据、结论和行动项。
+                长度控制：总输出长度应控制在100字以内，优先保留高频关键词、专有名词、数据、结论和行动项。
                 输出格式：
                 直接输出提炼后的文本内容，不要包含任何解释、前缀（如“提炼结果：”）或后缀。
             """;
@@ -630,7 +630,7 @@ public class ChatController implements InitializingBean {
                 String content = this.summaryPicture(f);
 
                 try {
-                    Files.write(p, content.getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                    Files.write(p, (content+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -712,7 +712,7 @@ public class ChatController implements InitializingBean {
                 String content = this.summaryPicture(f);
 //                sb.append(content);
                 try {
-                    Files.write(p, content.getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                    Files.write(p, (content+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -795,7 +795,7 @@ public class ChatController implements InitializingBean {
                 String content = this.summaryPicture(f);
 //                sb.append(content);
                 try {
-                    Files.write(p, content.getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                    Files.write(p, (content+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

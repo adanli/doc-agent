@@ -264,13 +264,14 @@ public class ChatController implements InitializingBean {
             for (SearchResult result: list) {
                 if(content.getId().equals(result.id)) {
                     content.setScore(new BigDecimal(String.valueOf(result.score)).multiply(new BigDecimal(100)).setScale(2, RoundingMode.HALF_UP).toPlainString() + "%");
+                    content.setsScore(result.score);
                 }
             }
         }
 
         contents.sort((c1, c2) -> {
-            Float s1 = Float.parseFloat(c1.getScore());
-            Float s2 = Float.parseFloat(c2.getScore());
+            Float s1 = c1.getsScore();
+            Float s2 = c2.getsScore();
             return s2.compareTo(s1);
         });
 

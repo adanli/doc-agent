@@ -56,4 +56,14 @@ public class FileContentVO {
     public void setScore(String score) {
         this.score = score;
     }
+
+    private float sScore;
+
+    public float getsScore() {
+        return sScore;
+    }
+
+    public void setsScore(float sScore) {
+        this.sScore = sScore;
+    }
 }

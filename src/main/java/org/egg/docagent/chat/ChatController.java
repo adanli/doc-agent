@@ -150,7 +150,7 @@ public class ChatController implements InitializingBean {
         return "success";
     }
 
-    public FileContent getFileContent(String path) {
+    public FileContent getFileContent(String path, boolean needEmbedding) {
         try {
             List<String> list = Files.readAllLines(Paths.get(path));
             if(CollectionUtils.isEmpty(list)) throw new RuntimeException(path + "文件为空");
@@ -185,9 +185,11 @@ public class ChatController implements InitializingBean {
             }
 
             String content = sb.toString();
-            float[] embedding = this.embedding(content);
-            fileContent.setFileContent(embedding);
             fileContent.setSourceContent(content);
+
+            if(needEmbedding) {
+                this.embedding(fileContent);
+            }
 
             return fileContent;
 
@@ -214,6 +216,32 @@ public class ChatController implements InitializingBean {
             EmbeddingResponse response = this.embeddingModel.embedForResponse(List.of(sb.toString()));
             return response.getResult().getOutput();
         }
+    }
+
+    private void embedding(FileContent fileContent) {
+        String content = fileContent.getSourceContent();
+        if(!StringUtils.hasLength(content)) return;
+
+        try {
+            EmbeddingResponse response = this.embeddingModel.embedForResponse(List.of(content));
+            fileContent.setFileContent(response.getResult().getOutput());
+            fileContent.setExistContent(true);
+        } catch (Exception e) {
+//            return null;
+            // 如果超过长度，只保留前4行
+            StringBuilder sb = new StringBuilder();
+            String[] contents = content.split("\n");
+            sb.append(contents[0]);
+            sb.append(contents[1]);
+            sb.append(contents[2]);
+            sb.append(contents[3]);
+            EmbeddingResponse response = this.embeddingModel.embedForResponse(List.of(sb.toString()));
+            fileContent.setFileContent(response.getResult().getOutput());
+            fileContent.setSourceContent(sb.toString());
+            fileContent.setExistContent(false);
+        }
+
+
     }
 
     /**
@@ -552,27 +580,9 @@ public class ChatController implements InitializingBean {
         try {
             WordToImageConverter.convertToImages(path, outputDir, format);
 
-            StringBuilder sb = new StringBuilder();
             String[] files = file.list();
             FileContent fileContent = new FileContent();
             this.getBasicFileInfo(path, fileContent);
-
-            for(String f: files) {
-                String p = String.format("%s/%s", outputDir, f);
-                // 上传到oss
-                try {
-                    minIOUtil.upload(p, f);
-//                    ossUtil.upload(new FileInputStream(p), f);
-                } catch (Exception e) {
-                    throw new RuntimeException("上传到oss失败: " + f);
-                }
-
-                String content = this.summaryPicture(f);
-                sb.append(content);
-                minIOUtil.delete(f);
-//                ossUtil.delete(f);
-            }
-            fileContent.setSourceContent(sb.toString());
 
             String outputFile = String.format("%s/%s.txt", outPath, _p);
             try {
@@ -588,9 +598,9 @@ public class ChatController implements InitializingBean {
                 throw new RuntimeException("创建文件失败: " + path);
             }
 
+            Path p = Paths.get(outputFile);
             try {
 
-                Path p = Paths.get(outputFile);
                 Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
                 // 文件名称
                 Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
@@ -606,6 +616,26 @@ public class ChatController implements InitializingBean {
 
             } catch (IOException e) {
                 e.printStackTrace();
+            }
+
+            for(String f: files) {
+                String pf = String.format("%s/%s", outputDir, f);
+                // 上传到oss
+                try {
+                    minIOUtil.upload(pf, f);
+                } catch (Exception e) {
+                    throw new RuntimeException("上传到oss失败: " + f);
+                }
+
+                String content = this.summaryPicture(f);
+
+                try {
+                    Files.write(p, content.getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                minIOUtil.delete(f);
             }
 
         } finally {
@@ -632,27 +662,9 @@ public class ChatController implements InitializingBean {
         try {
             PPTToImageConverter.convertToImages(path, outputDir, format);
 
-            StringBuilder sb = new StringBuilder();
             String[] files = file.list();
             FileContent fileContent = new FileContent();
             this.getBasicFileInfo(path, fileContent);
-
-            for(String f: files) {
-                String p = String.format("%s/%s", outputDir, f);
-                // 上传到oss
-                try {
-                    minIOUtil.upload(p, f);
-//                    ossUtil.upload(new FileInputStream(p), f);
-                } catch (Exception e) {
-                    throw new RuntimeException("上传到oss失败: " + f);
-                }
-
-                String content = this.summaryPicture(f);
-                sb.append(content);
-                minIOUtil.delete(f);
-//                ossUtil.delete(f);
-            }
-            fileContent.setSourceContent(sb.toString());
 
             String outputFile = String.format("%s/%s.txt", outPath, _p);
             try {
@@ -668,9 +680,9 @@ public class ChatController implements InitializingBean {
                 throw new RuntimeException("创建文件失败: " + path);
             }
 
+            Path p = Paths.get(outputFile);
             try {
 
-                Path p = Paths.get(outputFile);
                 Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
                 // 文件名称
                 Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
@@ -687,6 +699,27 @@ public class ChatController implements InitializingBean {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            for(String f: files) {
+                String pf = String.format("%s/%s", outputDir, f);
+                // 上传到oss
+                try {
+                    minIOUtil.upload(pf, f);
+                } catch (Exception e) {
+                    throw new RuntimeException("上传到oss失败: " + f);
+                }
+
+                String content = this.summaryPicture(f);
+//                sb.append(content);
+                try {
+                    Files.write(p, content.getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                minIOUtil.delete(f);
+            }
+//            fileContent.setSourceContent(sb.toString());
 
         } finally {
             clearDir(file);
@@ -712,27 +745,9 @@ public class ChatController implements InitializingBean {
         try {
             PDFToImageConverter.convertToImages(path, outputDir, format);
 
-            StringBuilder sb = new StringBuilder();
             String[] files = file.list();
             FileContent fileContent = new FileContent();
             this.getBasicFileInfo(path, fileContent);
-
-            for(String f: files) {
-                String p = String.format("%s/%s", outputDir, f);
-                // 上传到oss
-                try {
-                    minIOUtil.upload(p, f);
-//                    ossUtil.upload(new FileInputStream(p), f);
-                } catch (Exception e) {
-                    throw new RuntimeException("上传到oss失败: " + f);
-                }
-
-                String content = this.summaryPicture(f);
-                sb.append(content);
-                minIOUtil.delete(f);
-//                ossUtil.delete(f);
-            }
-            fileContent.setSourceContent(sb.toString());
 
             String outputFile = String.format("%s/%s.txt", outPath, _p);
             try {
@@ -748,9 +763,9 @@ public class ChatController implements InitializingBean {
                 throw new RuntimeException("创建文件失败: " + path);
             }
 
+            Path p = Paths.get(outputFile);
             try {
 
-                Path p = Paths.get(outputFile);
                 Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
                 // 文件名称
                 Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
@@ -768,6 +783,26 @@ public class ChatController implements InitializingBean {
                 e.printStackTrace();
             }
 
+            for(String f: files) {
+                String pf = String.format("%s/%s", outputDir, f);
+                // 上传到oss
+                try {
+                    minIOUtil.upload(pf, f);
+                } catch (Exception e) {
+                    throw new RuntimeException("上传到oss失败: " + f);
+                }
+
+                String content = this.summaryPicture(f);
+//                sb.append(content);
+                try {
+                    Files.write(p, content.getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                minIOUtil.delete(f);
+            }
+
+
         } finally {
             clearDir(file);
         }
@@ -784,7 +819,7 @@ public class ChatController implements InitializingBean {
         for (String f: files) {
             String path = String.format("%s/%s", file.getPath(), f);
             File file1 = new File(path);
-            file1.delete();
+            System.out.println(file1.getName() + "---" + file1.delete());
         }
 
         if(file.delete()) {
@@ -832,13 +867,14 @@ public class ChatController implements InitializingBean {
             String path = String.format("%s/%s", outPath, f);
             if(!path.endsWith(".txt")) continue;
 
-            FileContent fileContent = getFileContent(String.format("%s/%s", outPath, f));
+            FileContent fileContent = getFileContent(String.format("%s/%s", outPath, f), false);
             String id = fileContent.getId();
             FileContent existContent = this.findById(id);
             if(existContent != null) {
                 skipCount++;
             } else {
                 try {
+                    this.embedding(fileContent);
                     this.saveIntoMilvus(fileContent);
                     successCount++;
                 } catch (Exception e) {
@@ -884,10 +920,10 @@ public class ChatController implements InitializingBean {
     }
 
     public static void main(String[] args) {
-        String path1 = "/Users/adan/doc_out/_Users_adan_Documents_test_技改方案的评审管理办法.docx_dir";
+        String path1 = "D:\\doc_out2\\D__doc_test_1.pdf_dir";
         new ChatController().clearDir(new File(path1));
-        String path2 = "/Users/adan/doc_out/_Users_adan_Documents_test_附件4：部门工作总结复盘-架构办.pptx_dir";
-        new ChatController().clearDir(new File(path2));
+//        String path2 = "/Users/adan/doc_out/_Users_adan_Documents_test_附件4：部门工作总结复盘-架构办.pptx_dir";
+//        new ChatController().clearDir(new File(path2));
     }
 
     /**

@@ -27,6 +27,7 @@ import org.egg.docagent.minio.MinIOUtil;
 import org.egg.docagent.ossutil.OSSUtil;
 import org.egg.docagent.pdf2image.PDFToImageConverter;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
+import org.egg.docagent.vo.FileContentVO;
 import org.egg.docagent.word2image.WordToImageConverter;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -45,11 +46,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @PropertySource(value = "classpath:application.properties", encoding = "UTF-8")
@@ -66,6 +70,8 @@ public class ChatController implements InitializingBean {
     private String model;
     @Value("${spring.ai.openai.chat.options.pic.model}")
     private String picModel;
+    @Value("${match-bound}")
+    private float bound;
 
     @Autowired
     private ChatClient chatClient;
@@ -215,7 +221,7 @@ public class ChatController implements InitializingBean {
      * @return 返回模糊查询匹配成功的主键列表
      */
     @GetMapping(value = "/similar-search")
-    public List<SearchResult> similarSearch(@RequestParam(value = "keywords") String keywords) {
+    public List<FileContentVO> similarSearch(@RequestParam(value = "keywords") String keywords) {
         float[] embeddings = this.embedding(keywords);
         List<List<Float>> queryVectors = new ArrayList<>();
         List<Float> vector = new ArrayList<>();
@@ -241,12 +247,109 @@ public class ChatController implements InitializingBean {
 
         for (int i=0; i<size; i++) {
             float score = results.getResults().getScores(i);
+            // 过滤出score>=0.5的
+            if(score < bound) continue;
+
             String id = results.getResults().getIds().getStrId().getData(i);
             System.out.printf("%s ----- %f%n", id, score);
             list.add(new SearchResult(id, score));
         }
 
-        return list;
+        // 回查
+        List<FileContentVO> contents = this.findByIds(list.stream().map(SearchResult::id).collect(Collectors.toList()));
+
+        if(contents == null) return new ArrayList<>();
+
+        for (FileContentVO content: contents) {
+            for (SearchResult result: list) {
+                if(content.getId().equals(result.id)) {
+                    content.setScore(new BigDecimal(String.valueOf(result.score)).multiply(new BigDecimal(100)).setScale(2, RoundingMode.HALF_UP).toPlainString() + "%");
+                }
+            }
+        }
+
+        contents.sort((c1, c2) -> {
+            Float s1 = Float.parseFloat(c1.getScore());
+            Float s2 = Float.parseFloat(c2.getScore());
+            return s2.compareTo(s1);
+        });
+
+        return contents;
+    }
+
+    private List<FileContentVO> findByIds(List<String> ids) {
+        if(CollectionUtils.isEmpty(ids)) return new ArrayList<>();
+
+        StringBuilder sb = new StringBuilder("id in [");
+        ids.forEach(id -> {
+        });
+        for (int i=0; i<ids.size(); i++) {
+            if(i == ids.size()-1) {
+                sb.append("\"").append(ids.get(i)).append("\"");
+            } else {
+                sb.append("\"").append(ids.get(i)).append("\"").append(",");
+            }
+        }
+        sb.append("]");
+
+        QueryParam param = QueryParam.newBuilder()
+                .withDatabaseName(DATABASE)
+                .withCollectionName(COLLECTION)
+                .withExpr(sb.toString())
+                .withOutFields(List.of("id", "file_name", "create_dt", "update_dt", "file_path", "source_content", "exist_content", "version"))
+                .withLimit(5L)
+                .build();
+        R<QueryResults> r = milvusServiceClient.query(param);
+
+        if(r.getData() == null) return new ArrayList<>();
+
+        QueryResultsWrapper wrapper = new QueryResultsWrapper(r.getData());
+        List<QueryResultsWrapper.RowRecord> list = wrapper.getRowRecords();
+
+        if(CollectionUtils.isEmpty(list)) return new ArrayList<>();
+
+        return list.stream().map(this::convert2VO).collect(Collectors.toList());
+    }
+
+    private FileContent convert(QueryResultsWrapper.RowRecord record) {
+        FileContent content = new FileContent();
+        if(!ObjectUtils.isEmpty(record.get("id"))) {
+            content.setId(record.get("id")+"");
+        }
+        if(!ObjectUtils.isEmpty(record.get("file_name"))) {
+            content.setFileName(record.get("file_name")+"");
+        }
+        if(!ObjectUtils.isEmpty(record.get("create_dt"))) {
+            content.setCreateDt(Long.parseLong(record.get("create_dt")+""));
+        }
+        if(!ObjectUtils.isEmpty(record.get("update_dt"))) {
+            content.setUpdateDt(Long.parseLong(record.get("update_dt")+""));
+        }
+        if(!ObjectUtils.isEmpty(record.get("version"))) {
+            content.setVersion(Integer.parseInt(record.get("version")+""));
+        }
+        return content;
+    }
+
+    private FileContentVO convert2VO(QueryResultsWrapper.RowRecord record) {
+        FileContentVO content = new FileContentVO();
+        if(!ObjectUtils.isEmpty(record.get("id"))) {
+            content.setId(record.get("id")+"");
+        }
+        if(!ObjectUtils.isEmpty(record.get("file_name"))) {
+            content.setFileName(record.get("file_name")+"");
+        }
+        if(!ObjectUtils.isEmpty(record.get("source_content"))) {
+            content.setSourceContent(record.get("source_content")+"");
+        }
+        if(!ObjectUtils.isEmpty(record.get("create_dt"))) {
+            content.setCreateDt(sdf.format(new Date(Long.parseLong(record.get("create_dt")+""))));
+        }
+        if(!ObjectUtils.isEmpty(record.get("update_dt"))) {
+            content.setUpdateDt(sdf.format(new Date(Long.parseLong(record.get("update_dt")+""))));
+        }
+
+        return content;
     }
 
     @Override
@@ -761,7 +864,7 @@ public class ChatController implements InitializingBean {
         MultiModalConversation conv = new MultiModalConversation();
         MultiModalMessage userMessage = MultiModalMessage.builder().role(Role.USER.getValue())
                 .content(Arrays.asList(
-                        Collections.singletonMap("image", imagePath),
+                        Collections.singletonMap("image", imagePath.replaceAll("10.0.0.199:9000", "www.triplesails.com:43390")),
                         Collections.singletonMap("text", PROMPT))).build();
         MultiModalConversationParam param = MultiModalConversationParam.builder()
                 // 若没有配置环境变量，请用百炼API Key将下行替换为：.apiKey("sk-xxx")
@@ -791,12 +894,6 @@ public class ChatController implements InitializingBean {
      */
     @GetMapping(value = "/find-by-id")
     public FileContent findById(@RequestParam(value = "id") String id) {
-//        QueryReq req = QueryReq.builder()
-//                .databaseName(DATABASE)
-//                .collectionName(COLLECTION)
-//                .filter(String.format("id = \"%s\"", id))
-//                .limit(5)
-//                .build();
         QueryParam param = QueryParam.newBuilder()
                 .withDatabaseName(DATABASE)
                 .withCollectionName(COLLECTION)
@@ -814,24 +911,7 @@ public class ChatController implements InitializingBean {
         if(CollectionUtils.isEmpty(list)) return null;
         QueryResultsWrapper.RowRecord record = list.get(0);
 
-        FileContent content = new FileContent();
-        if(!ObjectUtils.isEmpty(record.get("id"))) {
-            content.setId(record.get("id")+"");
-        }
-        if(!ObjectUtils.isEmpty(record.get("file_name"))) {
-            content.setFileName(record.get("file_name")+"");
-        }
-        if(!ObjectUtils.isEmpty(record.get("create_dt"))) {
-            content.setCreateDt(Long.parseLong(record.get("create_dt")+""));
-        }
-        if(!ObjectUtils.isEmpty(record.get("update_dt"))) {
-            content.setUpdateDt(Long.parseLong(record.get("update_dt")+""));
-        }
-        if(!ObjectUtils.isEmpty(record.get("version"))) {
-            content.setVersion(Integer.parseInt(record.get("version")+""));
-        }
-
-        return content;
+        return this.convert(record);
     }
 
 

@@ -331,7 +331,7 @@ public class ChatExecute implements Runnable{
                     e.printStackTrace();
                 }
 
-                this.delete(f);
+                this.delete(nf);
             }
 //            fileContent.setSourceContent(sb.toString());
 

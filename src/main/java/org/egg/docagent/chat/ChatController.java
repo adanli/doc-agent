@@ -757,7 +757,10 @@ public class ChatController implements InitializingBean {
         int skipCount = 0;
         for (String f: files) {
             String path = String.format("%s/%s", outPath, f);
-            if(!path.endsWith(".txt")) continue;
+            if(!path.endsWith(".txt")) {
+                skipCount++;
+                continue;
+            };
 
             FileContent fileContent = getFileContent(String.format("%s/%s", outPath, f), false);
             String id = fileContent.getId();

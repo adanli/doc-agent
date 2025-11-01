@@ -194,6 +194,13 @@
             <version>4.2</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/com.alibaba.cloud.ai/spring-ai-alibaba-core -->
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-core</artifactId>
+            <version>1.0.0.4</version>
+        </dependency>
+
     </dependencies>
     <dependencyManagement>
         <dependencies>

@@ -1,5 +1,6 @@
 package org.egg.docagent.chat;
 
+import com.alibaba.cloud.ai.transformer.splitter.SentenceSplitter;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
@@ -93,6 +94,7 @@ public class ChatController implements InitializingBean {
     private String preHandlePath;
 
     private TokenTextSplitter splitter;
+//    private SentenceSplitter splitter;
 
     @Autowired
     private ChatClient chatClient;
@@ -437,8 +439,10 @@ public class ChatController implements InitializingBean {
         executorService = Executors.newFixedThreadPool(parallelNum);
 
         splitter = TokenTextSplitter.builder()
-                .withChunkSize(8192)
+                .withChunkSize(8000)
+                .withMaxNumChunks(8000)
                 .build();
+//        splitter = new SentenceSplitter(8192);
 
     }
 
@@ -951,7 +955,7 @@ public class ChatController implements InitializingBean {
         int sort = 1;
 
 
-        if(sb.length() > 8192) {
+        if(sb.length() > 7000) {
             String c = sb.toString();
             for (String specialToken: specialTokens) {
                 if(c.contains(specialToken)) {

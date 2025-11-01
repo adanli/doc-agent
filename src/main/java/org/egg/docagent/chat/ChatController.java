@@ -53,11 +53,22 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @RestController
 @PropertySource(value = "classpath:application.properties", encoding = "UTF-8")
 public class ChatController implements InitializingBean {
+    /**
+     * 并发度
+    */
+    @Value("${parallel-num}")
+    private int parallelNum;
+    private ExecutorService executorService;
+
     @Value("${spring.ai.openai.base-url}")
     private String baseUrl;
     @Value("${spring.ai.openai.api-key}")
@@ -73,6 +84,8 @@ public class ChatController implements InitializingBean {
     @Value("${match-bound}")
     private float bound;
 
+
+
     @Autowired
     private ChatClient chatClient;
     @Autowired
@@ -81,6 +94,15 @@ public class ChatController implements InitializingBean {
     private OSSUtil ossUtil;
     @Autowired
     private MinIOUtil minIOUtil;
+
+    @Value("${minio-endpoint}")
+    private String minioEndpoint;
+    @Value("${minio-access-key}")
+    private String minioAccessKey;
+    @Value("${minio-secret-key}")
+    private String minioSecretKey;
+    @Value("${minio-bucket}")
+    private String minioBucket;
 
     private static final String DATABASE = "default";
     private static final String COLLECTION = "vector_store";
@@ -126,6 +148,10 @@ public class ChatController implements InitializingBean {
                         .content()
         );
     }
+
+    private AtomicInteger successCount = new AtomicInteger(0);
+    private AtomicInteger errorCount = new AtomicInteger(0);
+    private AtomicInteger skipCount = new AtomicInteger(0);
 
     @Autowired
     private MilvusServiceClient milvusServiceClient;
@@ -387,12 +413,15 @@ public class ChatController implements InitializingBean {
         builder.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES);
         gson = builder.create();
 
-        openAIClient = OpenAIOkHttpClient.builder()
+        /*openAIClient = OpenAIOkHttpClient.builder()
                 .apiKey(sk)
                 .baseUrl(String.format("%s/%s", baseUrl, "v1"))
-                .build();
+                .build();*/
 
         baseDir.add(basePath);
+
+        executorService = Executors.newFixedThreadPool(parallelNum);
+
     }
 
     record SearchResult(String id, float score){}
@@ -401,41 +430,70 @@ public class ChatController implements InitializingBean {
      * 遍历文件夹，处理文件
      */
     @PostMapping(value = "/execute")
-    public String execute() {
+    public String execute() throws InterruptedException {
         List<String> files = new ArrayList<>();
         for (String dir: baseDir) {
             iterDir(files, dir);
         }
 
-        int total = files.size();
-        int successCount = 0;
-        int errorCount = 0;
-        int skipCount = 0;
+        // 预处理
+        int skip = 0;
+        for (int i=files.size()-1; i>=0; i--) {
+            String file = files.get(i);
+            file = file.replaceAll("\\\\", "/");
 
-        long start = System.currentTimeMillis();
-
-        for (String file: files) {
-            long s1 = System.currentTimeMillis();
-            try {
-                // 如果该文件存在，则跳过不处理
-                file = file.replaceAll("\\\\", "/");
-
-                FileContent content = this.findById(file);
-                if(content != null) {
-                    skipCount++;
-                    continue;
-                }
-
-                summaryFileContent(file);
-                successCount++;
-            } catch (Exception e) {
-                e.printStackTrace();
-                errorCount++;
+            FileContent content = this.findById(file);
+            if(content != null) {
+                files.remove(i);
+                skip++;
             }
-            System.out.printf("%s文件解析完成，耗时: %ss，成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", file, (System.currentTimeMillis()-s1)/1000, successCount, total, errorCount, total, skipCount, total);
+        }
+        System.out.println("跳过" + skip + "个文件");
+
+        CountDownLatch latch = new CountDownLatch(parallelNum);
+
+        for (int i=0; i<parallelNum; i++) {
+            int partSize = files.size()/parallelNum;
+            List<String> subFiles = new ArrayList<>();
+
+            if(i == parallelNum - 1) {
+                for (int j=i*partSize; j<files.size(); j++) {
+                    subFiles.add(files.get(j));
+                }
+            } else {
+                for (int j=i*partSize; j<i*partSize+partSize; j++) {
+                    subFiles.add(files.get(j));
+                }
+            }
+
+            ChatExecute execute = new ChatExecute(
+                    subFiles,
+                    successCount,
+                    errorCount,
+                    skipCount,
+                    PROMPT,
+                    outPath,
+                    sk,
+                    picModel,
+                    model,
+                    latch,
+                    baseUrl,
+                    minioEndpoint,
+                    minioAccessKey,
+                    minioSecretKey,
+                    minioBucket,
+                    milvusServiceClient
+            );
+
+            executorService.execute(execute);
+
         }
 
-        System.out.printf("整体耗时: %ss%n", (System.currentTimeMillis()-start)/1000);
+        executorService.execute(new ChatSummary(successCount, errorCount, skipCount, files.size()));
+
+        latch.await();
+        System.out.println();
+
 
         return "success";
     }

@@ -8,20 +8,29 @@ public class ChatSummary implements Runnable {
     private final AtomicInteger skipCount;
     private final int total;
 
-    public ChatSummary(AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, int total) {
+    private boolean flag;
+
+    public ChatSummary(AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, int total, boolean flag) {
         this.successCount = successCount;
         this.errorCount = errorCount;
         this.skipCount = skipCount;
         this.total = total;
+        this.flag = flag;
+    }
+
+    public void setFlag(boolean flag) {
+        this.flag = flag;
     }
 
     @Override
     public void run() {
-        try {
-            Thread.sleep(10000);
-            System.err.printf("成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", successCount.get(), total, errorCount.get(), total, skipCount.get(), total);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        while (flag) {
+            try {
+                Thread.sleep(10000);
+                System.err.printf("成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", successCount.get(), total, errorCount.get(), total, skipCount.get(), total);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

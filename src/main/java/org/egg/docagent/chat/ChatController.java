@@ -484,12 +484,14 @@ public class ChatController implements InitializingBean {
 
         }
 
-        ChatSummary summary = new ChatSummary(successCount, errorCount, skipCount, files.size());
+        ChatSummary summary = new ChatSummary(successCount, errorCount, skipCount, files.size(), true);
 
         executorService.execute(new Thread(summary, "Summary"));
 
         latch.await();
         System.out.println();
+
+        summary.setFlag(false);
 
 
         return "success";

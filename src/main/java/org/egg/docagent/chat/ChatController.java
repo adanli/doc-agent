@@ -1,8 +1,5 @@
 package org.egg.docagent.chat;
 
-import com.alibaba.cloud.ai.transformer.splitter.RecursiveCharacterTextSplitter;
-import com.alibaba.cloud.ai.transformer.splitter.SentenceSplitter;
-import com.alibaba.cloud.ai.transformer.splitter.SentenceSplitter;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;

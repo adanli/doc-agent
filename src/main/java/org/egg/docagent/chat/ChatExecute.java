@@ -22,7 +22,6 @@ import io.minio.http.Method;
 import org.egg.docagent.entity.FileContent;
 import org.egg.docagent.pdf2image.PDFToImageConverter;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
-import org.egg.docagent.util.ImageCompressor;
 import org.egg.docagent.word2image.WordToImageConverter;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
@@ -71,6 +70,10 @@ public class ChatExecute implements Runnable{
     private String minioAccessKey;
     private String minioSecretKey;
     private String bucket;
+
+    private int success = 0;
+    private int error = 0;
+    private int skip = 0;
 
     public ChatExecute(List<String> files, AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, String prompt, String outPath, String sk, String picModel, String model, CountDownLatch latch,
         String baseUrl,
@@ -190,16 +193,19 @@ public class ChatExecute implements Runnable{
                 FileContent content = this.findById(file);
                 if(content != null) {
                     skipCount.incrementAndGet();
+                    skip++;
                     continue;
                 }
 
                 summaryFileContent(file);
                 successCount.incrementAndGet();
+                success++;
             } catch (Exception e) {
                 e.printStackTrace();
                 errorCount.incrementAndGet();
+                error++;
             }
-            System.out.printf("%s---%s文件解析完成，耗时: %ss，成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", Thread.currentThread().getName(), file, (System.currentTimeMillis()-s1)/1000, successCount.get(), files.size(), errorCount.get(), files.size(), skipCount.get(), files.size());
+            System.out.printf("%s---%s文件解析完成，耗时: %ss，成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", Thread.currentThread().getName(), file, (System.currentTimeMillis()-s1)/1000, success, files.size(), error, files.size(), skip, files.size());
         }
 
         latch.countDown();

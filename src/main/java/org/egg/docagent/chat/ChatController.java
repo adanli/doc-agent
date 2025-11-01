@@ -110,7 +110,7 @@ public class ChatController implements InitializingBean {
                 高度浓缩：去除重复、格式符号、页眉页脚、无关修饰语等非实质内容，仅保留对理解文档主题、关键事实、实体和逻辑关系有贡献的文本。
                 结构化输出（可选但推荐）：若文档包含明确结构（如标题、章节、列表、表格），请用简洁的自然语言将其逻辑关系保留下来（例如：“第一章：引言——介绍研究背景与目标”）。
                 输出纯文本：不要使用 Markdown、XML 或其他标记语言，仅输出干净、连贯的中文（或原文语言）段落。
-                长度控制：总输出长度应控制在100字以内，优先保留高频关键词、专有名词、数据、结论和行动项。
+                长度控制：总输出长度应控制在150字以内，优先保留高频关键词、专有名词、数据、结论和行动项。
                 输出格式：
                 直接输出提炼后的文本内容，不要包含任何解释、前缀（如“提炼结果：”）或后缀。
             """;
@@ -787,15 +787,20 @@ public class ChatController implements InitializingBean {
                 String pf = String.format("%s/%s", outputDir, f);
                 // 上传到oss
                 try {
+                    System.out.println("上传到minio");
                     minIOUtil.upload(pf, f);
+                    System.out.println("上传到minio完成");
                 } catch (Exception e) {
                     throw new RuntimeException("上传到oss失败: " + f);
                 }
 
                 String content = this.summaryPicture(f);
+                System.out.println("解析图片完成");
 //                sb.append(content);
                 try {
+                    System.out.println("准备写入");
                     Files.write(p, (content+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                    System.out.println("完成写入");
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -901,7 +906,7 @@ public class ChatController implements InitializingBean {
         MultiModalConversation conv = new MultiModalConversation();
         MultiModalMessage userMessage = MultiModalMessage.builder().role(Role.USER.getValue())
                 .content(Arrays.asList(
-                        Collections.singletonMap("image", imagePath.replaceAll("10.0.0.199:9000", "www.triplesails.com:43390")),
+                        Collections.singletonMap("image", imagePath),
                         Collections.singletonMap("text", PROMPT))).build();
         MultiModalConversationParam param = MultiModalConversationParam.builder()
                 // 若没有配置环境变量，请用百炼API Key将下行替换为：.apiKey("sk-xxx")

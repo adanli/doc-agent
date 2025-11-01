@@ -157,11 +157,17 @@ public class InitializeMilvus {
                 .metricType(IndexParam.MetricType.COSINE)
                 .build();
 
+        IndexParam idxFilePath = IndexParam
+                .builder()
+                .fieldName("file_path")
+                .indexType(IndexParam.IndexType.TRIE)
+                .build();
+
         CreateIndexReq createIndexReq = CreateIndexReq
                 .builder()
                 .databaseName("default")
                 .collectionName(COLLECTION_NAME)
-                .indexParams(List.of(indexParam))
+                .indexParams(List.of(indexParam, idxFilePath))
                 .build();
         client.createIndex(createIndexReq);
 

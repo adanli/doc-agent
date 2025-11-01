@@ -1,5 +1,7 @@
 package org.egg.docagent.chat;
 
+import com.alibaba.cloud.ai.transformer.splitter.RecursiveCharacterTextSplitter;
+import com.alibaba.cloud.ai.transformer.splitter.SentenceSplitter;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
@@ -26,13 +28,13 @@ import org.egg.docagent.minio.MinIOUtil;
 import org.egg.docagent.ossutil.OSSUtil;
 import org.egg.docagent.pdf2image.PDFToImageConverter;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
+import org.egg.docagent.splitter.MyTextSplitter;
 import org.egg.docagent.vo.FileContentVO;
 import org.egg.docagent.word2image.WordToImageConverter;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
-import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -92,7 +94,10 @@ public class ChatController implements InitializingBean {
     @Value("${file.pre.handle.out.path}")
     private String preHandlePath;
 
-    private TokenTextSplitter splitter;
+//    private TokenTextSplitter splitter;
+//    private SentenceSplitter splitter;
+//    private RecursiveCharacterTextSplitter splitter;
+    private MyTextSplitter splitter;
 
     @Autowired
     private ChatClient chatClient;
@@ -436,9 +441,13 @@ public class ChatController implements InitializingBean {
 
         executorService = Executors.newFixedThreadPool(parallelNum);
 
-        splitter = TokenTextSplitter.builder()
-                .withChunkSize(8192)
-                .build();
+//        splitter = TokenTextSplitter.builder()
+//                .withChunkSize(8000)
+//                .withMaxNumChunks(8000)
+//                .build();
+//        splitter = new SentenceSplitter(8192);
+//        splitter = new RecursiveCharacterTextSplitter();
+        splitter = new MyTextSplitter();
 
     }
 
@@ -951,7 +960,7 @@ public class ChatController implements InitializingBean {
         int sort = 1;
 
 
-        if(sb.length() > 8192) {
+        if(sb.length() > 7000) {
             String c = sb.toString();
             for (String specialToken: specialTokens) {
                 if(c.contains(specialToken)) {

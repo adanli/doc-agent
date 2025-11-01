@@ -48,28 +48,28 @@ public class ChatExecute implements Runnable{
     private static final String DATABASE = "default";
     private static final String COLLECTION = "vector_store";
 
-    private List<String> files;
-    private AtomicInteger successCount;
-    private AtomicInteger errorCount;
-    private AtomicInteger skipCount;
+    private final List<String> files;
+    private final AtomicInteger successCount;
+    private final AtomicInteger errorCount;
+    private final AtomicInteger skipCount;
 
-    private String prompt;
+    private final String prompt;
     private OpenAIClient openAIClient;
-    private String outPath;
+    private final String outPath;
     private MinioClient minioClient;
 
-    private String sk;
-    private String picModel;
-    private String model;
+    private final String sk;
+    private final String picModel;
+    private final String model;
 
-    private MilvusServiceClient milvusServiceClient;
-    private CountDownLatch latch;
-    private String baseUrl;
+    private final MilvusServiceClient milvusServiceClient;
+    private final CountDownLatch latch;
+    private final String baseUrl;
 
-    private String minioEndpoint;
-    private String minioAccessKey;
-    private String minioSecretKey;
-    private String bucket;
+    private final String minioEndpoint;
+    private final String minioAccessKey;
+    private final String minioSecretKey;
+    private final String bucket;
 
     private int success = 0;
     private int error = 0;
@@ -123,11 +123,8 @@ public class ChatExecute implements Runnable{
      */
     public void upload(String filePath, String uploadPath) {
 
-//        String format = ImageCompressor.getImageFormat(filePath);
 
         try {
-//            byte[] imageData = ImageCompressor.compressWithThumbnailator(new FileInputStream(filePath), format, 800, 800, 0.8);
-//            ByteArrayInputStream compressedStream = new ByteArrayInputStream(imageData);
 
             minioClient.uploadObject(
                     UploadObjectArgs.builder()
@@ -136,13 +133,6 @@ public class ChatExecute implements Runnable{
                             .object(uploadPath)
                             .build()
             );
-
-            /*client.putObject(PutObjectArgs.builder()
-                .bucket(bucket)
-                .object(uploadPath)
-                .stream(compressedStream, imageData.length, -1)
-                .contentType("image/png")
-                .build());*/
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -252,13 +242,12 @@ public class ChatExecute implements Runnable{
         return content;
     }
 
-    private String summaryFileContent(@RequestParam("path") String path) throws Exception{
-        if(path.endsWith(".pptx") || path.endsWith(".docx") || path.endsWith(".xlsx")) {
+    private void summaryFileContent(@RequestParam("path") String path) throws Exception{
+        if(path.endsWith(".pptx") || path.endsWith(".docx") || path.endsWith(".pdf")) {
             this.summaryFileContentWithPic(path);
         }   else {
             this.summaryNormalFileContent(path);
         }
-        return "success";
     }
 
     /**
@@ -305,17 +294,17 @@ public class ChatExecute implements Runnable{
             Path p = Paths.get(outputFile);
             try {
 
-                Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
+                Files.writeString(p, fileContent.getFilePath()+'\n', Charset.defaultCharset(), StandardOpenOption.WRITE);
                 // 文件名称
-                Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                Files.writeString(p, fileContent.getFileName()+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
 
                 // 创建时间
-                Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                Files.writeString(p, fileContent.getCreateDt()+""+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
                 // 修改时间
-                Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                Files.writeString(p, fileContent.getUpdateDt()+""+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
 
                 if(StringUtils.hasLength(fileContent.getSourceContent())) {
-                    Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                    Files.writeString(p, fileContent.getSourceContent(), Charset.defaultCharset(), StandardOpenOption.APPEND);
                 }
 
             } catch (IOException e) {
@@ -337,7 +326,7 @@ public class ChatExecute implements Runnable{
                 String content = this.summaryPicture(nf);
 //                sb.append(content);
                 try {
-                    Files.write(p, (content+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                    Files.writeString(p, content+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -451,7 +440,7 @@ public class ChatExecute implements Runnable{
         if(!Files.exists(p)) {
             try {
                 Files.createFile(p);
-                Files.write(p, (path+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
+                Files.writeString(p, path+'\n', Charset.defaultCharset(), StandardOpenOption.WRITE);
             } catch (IOException e) {
                 e.printStackTrace();
                 throw e;
@@ -462,15 +451,15 @@ public class ChatExecute implements Runnable{
             // 文件名称
             int position = path.lastIndexOf('/');
             String fileName = path.substring(position+1);
-            Files.write(p, (fileName+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+            Files.writeString(p, fileName+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
 
             BasicFileAttributes attributes = Files.readAttributes(filePath, BasicFileAttributes.class);
             // 创建时间
             long createTime = attributes.creationTime().toMillis();
-            Files.write(p, (createTime+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+            Files.writeString(p, createTime+""+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
             // 修改时间
             long updateTime = attributes.lastModifiedTime().toMillis();
-            Files.write(p, (updateTime+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+            Files.writeString(p, updateTime+""+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -487,7 +476,7 @@ public class ChatExecute implements Runnable{
 //                    fullResponse.append(content);
                     try {
 
-                        Files.write(p, content.getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
+                        Files.writeString(p, content, Charset.defaultCharset(), StandardOpenOption.APPEND);
                     } catch (IOException e) {
                         e.printStackTrace();
                     }

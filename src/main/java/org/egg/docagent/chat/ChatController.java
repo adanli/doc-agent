@@ -10,7 +10,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.*;
 import io.milvus.client.MilvusServiceClient;
@@ -413,11 +412,6 @@ public class ChatController implements InitializingBean {
         builder.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES);
         gson = builder.create();
 
-        /*openAIClient = OpenAIOkHttpClient.builder()
-                .apiKey(sk)
-                .baseUrl(String.format("%s/%s", baseUrl, "v1"))
-                .build();*/
-
         baseDir.add(basePath);
 
         executorService = Executors.newFixedThreadPool(parallelNum);
@@ -609,13 +603,9 @@ public class ChatController implements InitializingBean {
      */
     @PostMapping(value = "summary-file-content")
     public String summaryFileContent(@RequestParam("path") String path) throws Exception{
-        if(path.endsWith(".pptx")) {
-            this.summaryPPTFileContent(path);
-        } else if(path.endsWith(".docx")) {
-            this.summaryWordFileContent(path);
-        }  else if(path.endsWith(".pdf")) {
-            this.summaryPDFFileContent(path);
-        } else {
+        if(path.endsWith(".pptx") || path.endsWith(".docx") || path.endsWith(".pdf")) {
+            this.summaryFileContentWithPic(path);
+        }else {
             this.summaryNormalFileContent(path);
         }
         return "success";
@@ -626,7 +616,7 @@ public class ChatController implements InitializingBean {
      * 2. 使用大模型，解析图片
      * 3. 将文件夹内图片，解析后合并到一个文件
      */
-    private void summaryWordFileContent(String path) {
+    private void summaryFileContentWithPic(String path) {
         String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
         String format = "png";
         String outputDir = String.format("%s/%s_dir", outPath, _p);
@@ -636,7 +626,13 @@ public class ChatController implements InitializingBean {
         }
 
         try {
-            WordToImageConverter.convertToImages(path, outputDir, format);
+            if(path.endsWith(".pptx")) {
+                PPTToImageConverter.convertToImages(path, outputDir, format);
+            } else if (path.endsWith(".pdf")){
+                PDFToImageConverter.convertToImages(path, outputDir, format);
+            } else if(path.endsWith(".docx")) {
+                WordToImageConverter.convertToImages(path, outputDir, format);
+            }
 
             String[] files = file.list();
             FileContent fileContent = new FileContent();
@@ -695,176 +691,6 @@ public class ChatController implements InitializingBean {
 
                 minIOUtil.delete(f);
             }
-
-        } finally {
-            clearDir(file);
-        }
-
-
-    }
-
-    /**
-     * 1. 将PPT转成图片
-     * 2. 使用大模型，解析图片
-     * 3. 将文件夹内图片，解析后合并到一个文件
-     */
-    private void summaryPPTFileContent(String path) {
-        String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
-        String format = "png";
-        String outputDir = String.format("%s/%s_dir", outPath, _p);
-        File file = new File(outputDir);
-        if(!file.exists()) {
-            file.mkdirs();
-        }
-
-        try {
-            PPTToImageConverter.convertToImages(path, outputDir, format);
-
-            String[] files = file.list();
-            FileContent fileContent = new FileContent();
-            this.getBasicFileInfo(path, fileContent);
-
-            String outputFile = String.format("%s/%s.txt", outPath, _p);
-            try {
-                File newFile = new File(outputFile);
-                if(newFile.exists()) {
-                    newFile.delete();
-                }
-                if(!newFile.exists()) {
-                    newFile.createNewFile();
-                }
-
-            } catch (Exception e) {
-                throw new RuntimeException("创建文件失败: " + path);
-            }
-
-            Path p = Paths.get(outputFile);
-            try {
-
-                Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
-                // 文件名称
-                Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-
-                // 创建时间
-                Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-                // 修改时间
-                Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-
-                if(StringUtils.hasLength(fileContent.getSourceContent())) {
-                    Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-                }
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            for(String f: files) {
-                String pf = String.format("%s/%s", outputDir, f);
-                // 上传到oss
-                try {
-                    minIOUtil.upload(pf, f);
-                } catch (Exception e) {
-                    throw new RuntimeException("上传到oss失败: " + f);
-                }
-
-                String content = this.summaryPicture(f);
-//                sb.append(content);
-                try {
-                    Files.write(p, (content+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-
-                minIOUtil.delete(f);
-            }
-//            fileContent.setSourceContent(sb.toString());
-
-        } finally {
-            clearDir(file);
-        }
-
-
-    }
-
-    /**
-     * 1. 将PDF转成图片
-     * 2. 使用大模型，解析图片
-     * 3. 将文件夹内图片，解析后合并到一个文件
-     */
-    private void summaryPDFFileContent(String path) {
-        String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
-        String format = "png";
-        String outputDir = String.format("%s/%s_dir", outPath, _p);
-        File file = new File(outputDir);
-        if(!file.exists()) {
-            file.mkdirs();
-        }
-
-        try {
-            PDFToImageConverter.convertToImages(path, outputDir, format);
-
-            String[] files = file.list();
-            FileContent fileContent = new FileContent();
-            this.getBasicFileInfo(path, fileContent);
-
-            String outputFile = String.format("%s/%s.txt", outPath, _p);
-            try {
-                File newFile = new File(outputFile);
-                if(newFile.exists()) {
-                    newFile.delete();
-                }
-                if(!newFile.exists()) {
-                    newFile.createNewFile();
-                }
-
-            } catch (Exception e) {
-                throw new RuntimeException("创建文件失败: " + path);
-            }
-
-            Path p = Paths.get(outputFile);
-            try {
-
-                Files.write(p, (fileContent.getFilePath()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.WRITE);
-                // 文件名称
-                Files.write(p, (fileContent.getFileName()+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-
-                // 创建时间
-                Files.write(p, (fileContent.getCreateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-                // 修改时间
-                Files.write(p, (fileContent.getUpdateDt()+""+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-
-                if(StringUtils.hasLength(fileContent.getSourceContent())) {
-                    Files.write(p, fileContent.getSourceContent().getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-                }
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            for(String f: files) {
-                String pf = String.format("%s/%s", outputDir, f);
-                // 上传到oss
-                try {
-                    System.out.println("上传到minio");
-                    minIOUtil.upload(pf, f);
-                    System.out.println("上传到minio完成");
-                } catch (Exception e) {
-                    throw new RuntimeException("上传到oss失败: " + f);
-                }
-
-                String content = this.summaryPicture(f);
-                System.out.println("解析图片完成");
-//                sb.append(content);
-                try {
-                    System.out.println("准备写入");
-                    Files.write(p, (content+'\n').getBytes(Charset.defaultCharset()), StandardOpenOption.APPEND);
-                    System.out.println("完成写入");
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                minIOUtil.delete(f);
-            }
-
 
         } finally {
             clearDir(file);

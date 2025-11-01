@@ -1,5 +1,7 @@
 package org.egg.docagent.chat;
 
+import lombok.Setter;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChatSummary implements Runnable {
@@ -8,6 +10,7 @@ public class ChatSummary implements Runnable {
     private final AtomicInteger skipCount;
     private final int total;
 
+    @Setter
     private boolean flag;
 
     public ChatSummary(AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, int total, boolean flag) {
@@ -15,10 +18,6 @@ public class ChatSummary implements Runnable {
         this.errorCount = errorCount;
         this.skipCount = skipCount;
         this.total = total;
-        this.flag = flag;
-    }
-
-    public void setFlag(boolean flag) {
         this.flag = flag;
     }
 

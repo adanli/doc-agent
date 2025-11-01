@@ -17,6 +17,16 @@ public class FileContent {
     private String  sourceContent;
     private Boolean existContent;
     private int version = 1;
+    // 文件块的顺序
+    private int sort = 1;
+
+    public int getSort() {
+        return sort;
+    }
+
+    public void setSort(int sort) {
+        this.sort = sort;
+    }
 
     public int getVersion() {
         return version;

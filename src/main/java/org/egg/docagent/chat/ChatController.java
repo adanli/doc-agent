@@ -29,8 +29,10 @@ import org.egg.docagent.ppt2image.PPTToImageConverter;
 import org.egg.docagent.vo.FileContentVO;
 import org.egg.docagent.word2image.WordToImageConverter;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,12 +45,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.Thread;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
@@ -84,7 +89,10 @@ public class ChatController implements InitializingBean {
     @Value("${match-bound}")
     private float bound;
 
+    @Value("${file.pre.handle.out.path}")
+    private String preHandlePath;
 
+    private TokenTextSplitter splitter;
 
     @Autowired
     private ChatClient chatClient;
@@ -124,6 +132,14 @@ public class ChatController implements InitializingBean {
 //                    ".xmind",
             );
 
+    private final List<String> specialTokens = List.of(
+            "<|endoftext|>",
+            "<|fim_middle|>",
+            "<|fim_prefix|>",
+            "<|endofprompt|>",
+            "<|fim_suffix|>"
+    );
+
     private static final String PROMPT = """
             任务要求：
                 请仔细阅读以下文档内容，并执行以下操作：
@@ -161,7 +177,6 @@ public class ChatController implements InitializingBean {
 
     @GetMapping(value = "/save-info-milvus")
     public String saveIntoMilvus(FileContent fileContent) {
-//        FileContent fileContent = getFileContent(path);
 
         List<JsonObject> list = new ArrayList<>();
         list.add(gson.fromJson(gson.toJson(fileContent), JsonObject.class));
@@ -185,24 +200,28 @@ public class ChatController implements InitializingBean {
 
             StringBuilder sb = new StringBuilder();
 
-            String filePath = list.get(0);
-            sb.append("文件路径: ").append(filePath).append('\n');
+            String id = list.get(0);
+            sb.append("id: ").append(id).append('\n');
             String fileName = list.get(1);
             sb.append("文件名: ").append(fileName).append('\n');
-            String createTime = list.get(2);
+            String filePath = list.get(2);
+            sb.append("文件路径: ").append(filePath).append('\n');
+            String createTime = list.get(3);
             sb.append("创建时间: ").append(sdf.format(new Date(Long.parseLong(createTime)))).append('\n');
-            String updateTime = list.get(3);
+            String updateTime = list.get(4);
             sb.append("更新时间: ").append(sdf.format(new Date(Long.parseLong(updateTime)))).append('\n');
+            int sort = Integer.parseInt(list.get(5));
+            sb.append("顺序: ").append(sort).append('\n');
 
             FileContent fileContent = new FileContent();
-            fileContent.setId(filePath);
+            fileContent.setId(id);
             fileContent.setFileName(fileName);
             fileContent.setCreateDt(Long.valueOf(createTime));
             fileContent.setUpdateDt(Long.valueOf(updateTime));
             fileContent.setFilePath(filePath);
 
-            if(list.size() > 4) {
-                for (int i=4; i<list.size(); i++){
+            if(list.size() > 6) {
+                for (int i=6; i<list.size(); i++){
                     sb.append(list.get(i));
                 }
                 fileContent.setExistContent(true);
@@ -417,6 +436,10 @@ public class ChatController implements InitializingBean {
 
         executorService = Executors.newFixedThreadPool(parallelNum);
 
+        splitter = TokenTextSplitter.builder()
+                .withChunkSize(8192)
+                .build();
+
     }
 
     record SearchResult(String id, float score){}
@@ -437,7 +460,7 @@ public class ChatController implements InitializingBean {
             String file = files.get(i);
             file = file.replaceAll("\\\\", "/");
 
-            FileContent content = this.findById(file);
+            FileContent content = this.findByPath(file);
             if(content != null) {
                 files.remove(i);
                 skip++;
@@ -747,7 +770,7 @@ public class ChatController implements InitializingBean {
      */
     @PostMapping(value = "/save-info-milvus2")
     public void saveIntoMilvus2() {
-        File file = new File(outPath);
+        File file = new File(preHandlePath);
         if(!file.isDirectory()) return;
 
         String[] files = file.list();
@@ -764,7 +787,7 @@ public class ChatController implements InitializingBean {
                 continue;
             };
 
-            FileContent fileContent = getFileContent(String.format("%s/%s", outPath, f), false);
+            FileContent fileContent = getFileContent(String.format("%s/%s", preHandlePath, f), false);
             String id = fileContent.getId();
             FileContent existContent = this.findById(id);
             if(existContent != null) {
@@ -848,7 +871,137 @@ public class ChatController implements InitializingBean {
         return this.convert(record);
     }
 
+    public FileContent findByPath(String path) {
+        QueryParam param = QueryParam.newBuilder()
+                .withDatabaseName(DATABASE)
+                .withCollectionName(COLLECTION)
+                .withExpr(String.format("file_path == \"%s\"", path))
+                .withOutFields(List.of("id", "file_name", "create_dt", "update_dt", "file_path", "file_content", "source_content", "exist_content", "version"))
+                .withLimit(5L)
+                .build();
+        R<QueryResults> r = milvusServiceClient.query(param);
 
+        if(r.getData() == null) return null;
+
+        QueryResultsWrapper wrapper = new QueryResultsWrapper(r.getData());
+        List<QueryResultsWrapper.RowRecord> list = wrapper.getRowRecords();
+
+        if(CollectionUtils.isEmpty(list)) return null;
+        QueryResultsWrapper.RowRecord record = list.get(0);
+
+        return this.convert(record);
+    }
+
+    /**
+     * 预处理，将文本分词
+     * 读取out-path的内容，分词，输出到pre-out-path
+     */
+    @PostMapping(value = "/pre-handle")
+    public void preHandle() throws Exception{
+        File file = new File(outPath);
+        if(!file.isDirectory()) return;
+
+        String[] files = file.list();
+        if(files==null) return;
+
+        for (String f: files) {
+            String path = String.format("%s/%s", outPath, f);
+            File fil = new File(path);
+            if(!fil.isFile()) continue;
+
+            List<FileContent> contents = this.preHandle(path);
+
+            for (FileContent content: contents) {
+                try (BufferedWriter bufw = new BufferedWriter(new FileWriter(String.format("%s/%s-%s.txt", preHandlePath, content.getFileName(), content.getSort())));){
+                    bufw.write(content.getId()+'\n');
+                    bufw.write(content.getFileName()+'\n');
+                    bufw.write(content.getFilePath()+'\n');
+                    bufw.write(content.getCreateDt()+""+'\n');
+                    bufw.write(content.getUpdateDt()+""+'\n');
+                    bufw.write(content.getSort()+""+'\n');
+                    bufw.write(content.getSourceContent()+'\n');
+                }
+            }
+        }
+
+        System.out.println("预处理完成");
+    }
+
+
+    /**
+     * id
+     * fileName
+     * createDt
+     * updateDt
+     * sort
+     */
+    private List<FileContent> preHandle(String path) throws Exception{
+        List<String> list = Files.readAllLines(Paths.get(path));
+        String id = list.get(0);
+        String fileName = list.get(1);
+        String createDt = list.get(2);
+        String updateDt = list.get(3);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i=4; i<list.size(); i++) {
+            sb.append(list.get(i));
+        }
+
+        List<FileContent> contents = new ArrayList<>();
+        int sort = 1;
+
+
+        if(sb.length() > 8192) {
+            String c = sb.toString();
+            for (String specialToken: specialTokens) {
+                if(c.contains(specialToken)) {
+                    if(specialToken.equals("<|endoftext|>")) {
+                        c = c.replaceAll(specialToken, "<|'endoftext'|>");
+                    } else if(specialToken.equals("<|fim_middle|>")) {
+                        c = c.replaceAll(specialToken, "<|'fim_middle'|>");
+                    } else if(specialToken.equals("<|fim_prefix|>")) {
+                        c = c.replaceAll(specialToken, "<|'fim_prefix'|>");
+                    } else if(specialToken.equals("<|endofprompt|>")) {
+                        c = c.replaceAll(specialToken, "<|'endofprompt'|>");
+                    } else if(specialToken.equals("<|fim_suffix|>")) {
+                        c = c.replaceAll(specialToken, "<|'fim_suffix'|>");
+                    }
+                }
+            }
+
+            Document document = Document.builder().id(id).text(c).build();
+            try {
+                List<Document> documents = splitter.apply(List.of(document));
+                for (Document doc: documents) {
+                    FileContent content = new FileContent();
+                    content.setId(String.format("%s-%s", id, sort));
+                    content.setFileName(fileName);
+                    content.setFilePath(id);
+                    content.setCreateDt(Long.parseLong(createDt));
+                    content.setUpdateDt(Long.parseLong(updateDt));
+                    content.setSort(sort++);
+                    content.setSourceContent(doc.getText());
+                    content.setExistContent(true);
+                    contents.add(content);
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        } else {
+            FileContent content = new FileContent();
+            content.setId(String.format("%s-%s", id, sort));
+            content.setFileName(fileName);
+            content.setFilePath(id);
+            content.setCreateDt(Long.parseLong(createDt));
+            content.setUpdateDt(Long.parseLong(updateDt));
+            content.setSort(sort);
+            content.setExistContent(true);
+            content.setSourceContent(sb.toString());
+            contents.add(content);
+        }
+        return contents;
+    }
 
 
 }

@@ -3,10 +3,10 @@ package org.egg.docagent.chat;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChatSummary implements Runnable {
-    private AtomicInteger successCount;
-    private AtomicInteger errorCount;
-    private AtomicInteger skipCount;
-    private int total;
+    private final AtomicInteger successCount;
+    private final AtomicInteger errorCount;
+    private final AtomicInteger skipCount;
+    private final int total;
 
     public ChatSummary(AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, int total) {
         this.successCount = successCount;
@@ -19,7 +19,7 @@ public class ChatSummary implements Runnable {
     public void run() {
         try {
             Thread.sleep(10000);
-            System.out.printf("成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", successCount.get(), total, errorCount.get(), total, skipCount.get(), total);
+            System.err.printf("成功进度: %d/%d, 失败进度: %d/%d, 跳过进度: %d/%d%n", successCount.get(), total, errorCount.get(), total, skipCount.get(), total);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

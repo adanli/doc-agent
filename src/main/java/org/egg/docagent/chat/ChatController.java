@@ -45,6 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.Thread;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
@@ -483,7 +484,9 @@ public class ChatController implements InitializingBean {
 
         }
 
-        executorService.execute(new ChatSummary(successCount, errorCount, skipCount, files.size()));
+        ChatSummary summary = new ChatSummary(successCount, errorCount, skipCount, files.size());
+
+        executorService.execute(new Thread(summary, "Summary"));
 
         latch.await();
         System.out.println();

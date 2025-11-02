@@ -29,12 +29,12 @@ import org.egg.docagent.ppt2image.PPTToImageConverter;
 import org.egg.docagent.splitter.MyTextSplitter;
 import org.egg.docagent.vo.FileContentVO;
 import org.egg.docagent.word2image.WordToImageConverter;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.util.CollectionUtils;
@@ -53,7 +53,6 @@ import java.lang.Thread;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
@@ -98,8 +97,7 @@ public class ChatController implements InitializingBean {
     private MyTextSplitter splitter;
 
     @Autowired
-    private ChatClient chatClient;
-    @Autowired
+    @Qualifier("ollamaEmbeddingModel")
     private EmbeddingModel embeddingModel;
     @Autowired
     private OSSUtil ossUtil;
@@ -156,7 +154,7 @@ public class ChatController implements InitializingBean {
                 直接输出提炼后的文本内容，不要包含任何解释、前缀（如“提炼结果：”）或后缀。
             """;
 
-    @GetMapping("/ai")
+    /*@GetMapping("/ai")
     public Map<String, String> completion(@RequestParam(value = "message", defaultValue = "Tell me a joke") String message, @RequestParam(value = "voice") String voice) {
         return Map.of(
                 "completion",
@@ -166,7 +164,7 @@ public class ChatController implements InitializingBean {
                         .call()
                         .content()
         );
-    }
+    }*/
 
     private AtomicInteger successCount = new AtomicInteger(0);
     private AtomicInteger errorCount = new AtomicInteger(0);

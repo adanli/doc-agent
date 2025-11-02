@@ -22,6 +22,8 @@ public class EmbeddingModelConfig {
                         .build())
                 .defaultOptions(OllamaOptions.builder()
                         .model("m3e:latest")
+                        .mainGPU(1)
+                        .numGPU(100)
                         .build())
                 .build();
     }

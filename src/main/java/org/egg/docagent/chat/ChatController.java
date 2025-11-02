@@ -91,9 +91,6 @@ public class ChatController implements InitializingBean {
     @Value("${file.pre.handle.out.path}")
     private String preHandlePath;
 
-//    private TokenTextSplitter splitter;
-//    private SentenceSplitter splitter;
-//    private RecursiveCharacterTextSplitter splitter;
     private MyTextSplitter splitter;
 
     @Autowired

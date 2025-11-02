@@ -23,6 +23,15 @@ import org.egg.docagent.entity.FileContent;
 import org.egg.docagent.pdf2image.PDFToImageConverter;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
 import org.egg.docagent.word2image.WordToImageConverter;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.content.Media;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.MediaType;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
@@ -30,6 +39,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.Thread;
 import java.nio.charset.Charset;
@@ -75,6 +86,8 @@ public class ChatExecute implements Runnable{
     private int error = 0;
     private int skip = 0;
 
+    private OllamaChatModel chatModel;
+
     public ChatExecute(List<String> files, AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, String prompt, String outPath, String sk, String picModel, String model, CountDownLatch latch,
         String baseUrl,
         String minioEndpoint,
@@ -115,6 +128,17 @@ public class ChatExecute implements Runnable{
                 .endpoint(minioEndpoint)
                 .credentials(minioAccessKey, minioSecretKey)
                 .build();
+
+         chatModel = OllamaChatModel.builder()
+                 .ollamaApi(OllamaApi.builder()
+                         .baseUrl("http://localhost:11434")
+                         .build())
+                 .defaultOptions(OllamaOptions.builder()
+                         .model("qwen3-vl:8b")
+                         .mainGPU(1)
+                         .numGPU(100)
+                         .build())
+                 .build();
 
     }
 
@@ -339,6 +363,119 @@ public class ChatExecute implements Runnable{
             clearDir(file);
         }
 
+
+    }
+
+    private void summaryFileContentWithPic2(String path) {
+        String _p = path.replaceAll(":","_").replaceAll("\\\\","_").replaceAll("/","_");
+        String format = "png";
+        String outputDir = String.format("%s/%s_dir", outPath, _p);
+        File file = new File(outputDir);
+        if(!file.exists()) {
+            file.mkdirs();
+        }
+
+        try {
+            if(path.endsWith(".pptx")) {
+                PPTToImageConverter.convertToImages(path, outputDir, format);
+            } else if(path.endsWith(".docx")) {
+                WordToImageConverter.convertToImages(path, outputDir, format);
+            } else if(path.endsWith(".pdf")) {
+                PDFToImageConverter.convertToImages(path, outputDir, format);
+            }
+
+            String[] files = file.list();
+            FileContent fileContent = new FileContent();
+            this.getBasicFileInfo(path, fileContent);
+
+            String outputFile = String.format("%s/%s.txt", outPath, _p);
+            try {
+                File newFile = new File(outputFile);
+                if(newFile.exists()) {
+                    newFile.delete();
+                }
+                if(!newFile.exists()) {
+                    newFile.createNewFile();
+                }
+
+            } catch (Exception e) {
+                throw new RuntimeException("创建文件失败: " + path);
+            }
+
+            Path p = Paths.get(outputFile);
+            try {
+
+                Files.writeString(p, fileContent.getFilePath()+'\n', Charset.defaultCharset(), StandardOpenOption.WRITE);
+                // 文件名称
+                Files.writeString(p, fileContent.getFileName()+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
+
+                // 创建时间
+                Files.writeString(p, fileContent.getCreateDt()+""+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
+                // 修改时间
+                Files.writeString(p, fileContent.getUpdateDt()+""+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
+
+                if(StringUtils.hasLength(fileContent.getSourceContent())) {
+                    Files.writeString(p, fileContent.getSourceContent(), Charset.defaultCharset(), StandardOpenOption.APPEND);
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            for(String f: files) {
+                // 区分线程
+                String nf = String.format("%s/%s", Thread.currentThread().getName(), f);
+
+                String pf = String.format("%s/%s", outputDir, f);
+                // 上传到oss
+                /*try {
+                    this.upload(pf, nf);
+                } catch (Exception e) {
+                    throw new RuntimeException("上传到oss失败: " + nf);
+                }*/
+
+//                String content = this.summaryPicture(nf);
+                String content = this.summaryPictureDirect(pf);
+                if(StringUtils.hasLength(content)) {
+                    try {
+                        Files.writeString(p, content+'\n', Charset.defaultCharset(), StandardOpenOption.APPEND);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+//                this.delete(nf);
+            }
+
+
+        } finally {
+            clearDir(file);
+        }
+
+
+    }
+
+    private String summaryPictureDirect(String path){
+        Media imageMedia = null;
+        try {
+            imageMedia = new Media(
+                    MediaType.IMAGE_PNG,
+                new InputStreamResource(new FileInputStream(path))
+            );
+        } catch (FileNotFoundException e) {
+            System.err.println("读取图片失败");
+            return null;
+        }
+
+        // 构建多模态消息
+        UserMessage userMessage = UserMessage.builder()
+                .text(prompt)
+                .media(imageMedia)
+                .build();
+
+        Prompt prompt = new Prompt(userMessage);
+        ChatResponse response = chatModel.call(prompt);
+        return response.getResult().getOutput().getText();
 
     }
 

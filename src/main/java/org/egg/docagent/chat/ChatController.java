@@ -915,6 +915,7 @@ public class ChatController implements InitializingBean {
             String path = String.format("%s/%s", outPath, f);
             File fil = new File(path);
             if(!fil.isFile()) continue;
+            if(!path.endsWith(".txt")) continue;
 
             List<FileContent> contents = this.preHandle(path);
 

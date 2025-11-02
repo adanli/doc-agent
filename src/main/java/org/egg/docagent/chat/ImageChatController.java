@@ -33,7 +33,7 @@ public class ImageChatController {
 
         // 将上传的图像转换为 Media 对象
         Media imageMedia = new Media(
-                MediaType.ALL,
+                MediaType.APPLICATION_XML,
 //            new ByteArrayResource(image.getBytes())
             new InputStreamResource(inputStream)
         );

@@ -268,7 +268,7 @@ public class ChatExecute implements Runnable{
 
     private void summaryFileContent(@RequestParam("path") String path) throws Exception{
         if(path.endsWith(".pptx") || path.endsWith(".docx") || path.endsWith(".pdf")) {
-            this.summaryFileContentWithPic(path);
+            this.summaryFileContentWithPic2(path);
         }   else {
             this.summaryNormalFileContent(path);
         }

@@ -3,9 +3,18 @@ package org.egg.docagent.vo;
 public class FileContentVO {
     private String id;
     private String fileName;
+    private String filePath;
     private String createDt;
     private String updateDt;
     private String  sourceContent;
+
+    public String getFilePath() {
+        return filePath;
+    }
+
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
 
     public String getId() {
         return id;

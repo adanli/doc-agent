@@ -266,6 +266,7 @@
                         <tr>
                             <th>主题</th>
                             <th>名称</th>
+                            <th>文件路径</th>
                             <th>创建时间</th>
                             <th>修改时间</th>
                             <th>摘要</th>
@@ -445,6 +446,7 @@
                 row.innerHTML = `
                     <td>${item.id}</td>
                     <td>${item.fileName}</td>
+                    <td>${item.filePath}</td>
                     <td>${item.createDt}</td>
                     <td>${item.updateDt}</td>
                     <td class="summary" data-fulltext="${item.sourceContent}">${shortSummary}</td>

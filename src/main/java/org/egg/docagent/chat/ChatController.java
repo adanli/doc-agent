@@ -416,6 +416,9 @@ public class ChatController implements InitializingBean {
         if(!ObjectUtils.isEmpty(record.get("file_name"))) {
             content.setFileName(record.get("file_name")+"");
         }
+        if(!ObjectUtils.isEmpty(record.get("file_path"))) {
+            content.setFilePath(record.get("file_path")+"");
+        }
         if(!ObjectUtils.isEmpty(record.get("source_content"))) {
             content.setSourceContent(record.get("source_content")+"");
         }

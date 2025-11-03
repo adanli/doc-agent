@@ -96,6 +96,11 @@ public class ChatController implements InitializingBean {
     @Autowired
     @Qualifier("ollamaEmbeddingModel")
     private EmbeddingModel embeddingModel;
+
+    @Autowired
+    @Qualifier("ollamaChatModel")
+    private org.springframework.ai.chat.model.ChatModel chatModel;
+
     @Autowired
     private OSSUtil ossUtil;
     @Autowired
@@ -502,7 +507,8 @@ public class ChatController implements InitializingBean {
                     minioAccessKey,
                     minioSecretKey,
                     minioBucket,
-                    milvusServiceClient
+                    milvusServiceClient,
+                    chatModel
             );
 
             executorService.execute(execute);

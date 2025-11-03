@@ -12,13 +12,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class Config {
     @Bean
-    @Primary
+//    @Primary
     ChatClient chatClient(ChatClient.Builder builder) {
         return builder.defaultSystem("You are a friendly chat bot that answers question in the voice of a {voice}")
                 .build();
     }
 
-    /*@Bean("ollamaChatModel")
+    @Bean("ollamaChatModel")
     @Primary
     public ChatModel ollamaChatModel() {
         return OllamaChatModel.builder()
@@ -31,7 +31,7 @@ public class Config {
                         .numGPU(100)
                         .build())
                 .build();
-    }*/
+    }
 
     /*@Bean("openAiChatModel")
     public ChatModel openAiChatModel() {

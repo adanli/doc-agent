@@ -7,6 +7,7 @@ import org.springframework.ai.content.Media;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.MediaType;
 
@@ -16,16 +17,17 @@ import java.io.InputStream;
 public class ImageChatController {
 
     public static void main(String[] args) throws Exception{
-        String path = "D:\\doc_out\\D__doc_test_1.pdf_dir\\1_page_001.png";
+        String path = "/Users/adan/doc_out_ollama/_Users_adan_Documents_1. 工作_1. 中华_99. 会议_3. 部门会议_2. 架构办_3. 架构演进会_2024年Q2_2024Q2-架构演进会议_12. 测试赋能工具平台化的架构演进-质量测试部-许思瑞.pptx_dir/slide_005.png";
 
         OllamaChatModel chatModel = OllamaChatModel.builder()
                 .ollamaApi(OllamaApi.builder()
-                        .baseUrl("http://localhost:11434")
+//                        .baseUrl("http://10.128.100.79:11434")
+                        .baseUrl("http://10.250.198.239:11434")
                         .build())
                 .defaultOptions(OllamaOptions.builder()
-                        .numGPU(100)
-                        .mainGPU(1)
-                        .model("qwen3-vl:8b")
+//                        .numGPU(100)
+//                        .mainGPU(1)
+                        .model("qwen3-vl:4b")
                         .build())
                 .build();
 
@@ -57,11 +59,11 @@ public class ImageChatController {
                 .build();
 
         Prompt prompt = new Prompt(userMessage);
-        ChatResponse response = chatModel.call(prompt);
+//        ChatResponse response = chatModel.call(prompt);
+//        System.out.println(response.getResult().getOutput().getText());
 
-//        String response = chatModel.call("今天星期几");
-
-        System.out.println(response.getResult().getOutput().getText());
+        String response = chatModel.call("今天星期几");
+        System.out.println(response);
     }
 
 }

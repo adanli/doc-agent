@@ -24,6 +24,7 @@ import org.egg.docagent.pdf2image.PDFToImageConverter;
 import org.egg.docagent.ppt2image.PPTToImageConverter;
 import org.egg.docagent.word2image.WordToImageConverter;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.content.Media;
@@ -86,7 +87,7 @@ public class ChatExecute implements Runnable{
     private int error = 0;
     private int skip = 0;
 
-    private OllamaChatModel chatModel;
+    private ChatModel chatModel;
 
     public ChatExecute(List<String> files, AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, String prompt, String outPath, String sk, String picModel, String model, CountDownLatch latch,
         String baseUrl,
@@ -94,7 +95,8 @@ public class ChatExecute implements Runnable{
         String minioAccessKey,
         String minioSecretKey,
         String bucket,
-        MilvusServiceClient milvusServiceClient
+        MilvusServiceClient milvusServiceClient,
+        ChatModel chatModel
 
     ) {
         this.files = files;
@@ -113,6 +115,7 @@ public class ChatExecute implements Runnable{
         this.minioSecretKey = minioSecretKey;
         this.bucket = bucket;
         this.milvusServiceClient = milvusServiceClient;
+        this.chatModel = chatModel;
 
         init();
 
@@ -129,16 +132,17 @@ public class ChatExecute implements Runnable{
                 .credentials(minioAccessKey, minioSecretKey)
                 .build();
 
-         chatModel = OllamaChatModel.builder()
+         /*chatModel = OllamaChatModel.builder()
                  .ollamaApi(OllamaApi.builder()
-                         .baseUrl("http://localhost:11434")
+                         .baseUrl("http://10.250.198.239:11434")
+//                         .baseUrl("http://localhost:11434")
                          .build())
                  .defaultOptions(OllamaOptions.builder()
                          .model("qwen3-vl:8b")
                          .mainGPU(1)
-                         .numGPU(100)
+                         .numGPU(1)
                          .build())
-                 .build();
+                 .build();*/
 
     }
 

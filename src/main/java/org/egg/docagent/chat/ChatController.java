@@ -508,7 +508,8 @@ public class ChatController implements InitializingBean {
                     minioSecretKey,
                     minioBucket,
                     milvusServiceClient,
-                    chatModel
+                    chatModel,
+                    ossUtil
             );
 
             executorService.execute(execute);

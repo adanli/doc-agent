@@ -5,6 +5,7 @@ import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationP
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
 import com.alibaba.dashscope.common.MultiModalMessage;
 import com.alibaba.dashscope.common.Role;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.http.StreamResponse;
@@ -32,27 +33,28 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaOptions;
 import org.springframework.core.io.InputStreamResource;
-import org.springframework.http.MediaType;
+import org.springframework.http.*;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.Thread;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -88,6 +90,10 @@ public class ChatExecute implements Runnable{
     private int skip = 0;
 
     private ChatModel chatModel;
+
+    private RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper mapper = new ObjectMapper();
+    private String url = "http://1414587873548331.cn-shanghai-finance-1.pai-eas.aliyuncs.com/api/predict/qwen25_vl_32b/v1/chat/completions";
 
     public ChatExecute(List<String> files, AtomicInteger successCount, AtomicInteger errorCount, AtomicInteger skipCount, String prompt, String outPath, String sk, String picModel, String model, CountDownLatch latch,
         String baseUrl,
@@ -131,19 +137,6 @@ public class ChatExecute implements Runnable{
                 .endpoint(minioEndpoint)
                 .credentials(minioAccessKey, minioSecretKey)
                 .build();
-
-         /*chatModel = OllamaChatModel.builder()
-                 .ollamaApi(OllamaApi.builder()
-                         .baseUrl("http://10.250.198.239:11434")
-//                         .baseUrl("http://localhost:11434")
-                         .build())
-                 .defaultOptions(OllamaOptions.builder()
-                         .model("qwen3-vl:8b")
-                         .mainGPU(1)
-                         .numGPU(1)
-                         .build())
-                 .build();*/
-
     }
 
     /**
@@ -629,6 +622,53 @@ public class ChatExecute implements Runnable{
             System.err.println("请参考文档：https://help.aliyun.com/zh/model-studio/developer-reference/error-code");
             throw e;
         }
+    }
+
+    public String chat(@RequestParam("picPath") String picPath) throws Exception{
+        picPath = "http://prod-basicmodel-oss.oss-cn-shanghai-finance-1-internal.aliyuncs.com/coverage_assistant/data/page_019.png?OSSAccessKeyId=LTAI5tMngzLoZ4ndmU1k2iWK&Expires=1762266541&Signature=N3NLaM7rpAgTBJ6L8tpHe14ZJ7g%3D";
+        Map<String, Object> params = new HashMap<>();
+        params.put("model", "");
+
+        List<Map<String, Object>> paramList = new ArrayList<>();
+        params.put("messages", paramList);
+
+        Map<String, Object> paramMsg = new HashMap<>();
+        paramList.add(paramMsg);
+
+        paramMsg.put("role", "user");
+        List<Map<String, Object>> listContent = new ArrayList<>();
+        paramMsg.put("content", listContent);
+
+        Map<String, Object> mapContent1 = new HashMap();
+        Map<String, Object> mapContent2 = new HashMap();
+        listContent.add(mapContent1);
+        listContent.add(mapContent2);
+
+        mapContent1.put("type", "image_url");
+
+        Map<String, String> mapUrl = new HashMap<>();
+        mapContent1.put("image_url", mapUrl);
+        mapUrl.put("url", picPath);
+
+
+        mapContent2.put("type", "text");
+        mapContent2.put("text", """
+                    任务要求：请仔细阅读以下文档内容，并执行以下操作：保留原始语义：确保提取的内容忠实反映原文核心信息，不添加主观解释或外部知识。高度浓缩：去除重复、格式符号、页眉页脚、无关修饰语等非实质内容，仅保留对理解文档主题、关键事实、实体和逻辑关系有贡献的文本。结构化输出（可选但推荐）：若文档包含明确结构（如标题、章节、列表、表格），请用简洁的自然语言将其逻辑关系保留下来（例如：“第一章：引言——介绍研究背景与目标”）。输出纯文本：不要使用 Markdown、XML 或其他标记语言，仅输出干净、连贯的中文（或原文语言）段落。长度控制：总输出长度应控制在150字以内，优先保留高频关键词、专有名词、数据、结论和行动项。输出格式：直接输出提炼后的文本内容，不要包含任何解释、前缀（如“提炼结果：”）或后缀。
+                    """);
+
+
+
+        MultiValueMap<String, String> headers = new HttpHeaders();
+        headers.add("Authorization", "ZGU2N2EwOWE0MmI0ZGEyNmNjNmE5NTc1YTBhN2MxOTAyYjNlYzAxYw==");
+        headers.add("Content-Type", "application/json");
+
+        RequestEntity<String> request = new RequestEntity<>(mapper.writeValueAsString(params), headers, HttpMethod.POST, URI.create(url));
+        ResponseEntity<String> response = restTemplate.exchange(request, String.class);
+        System.out.println(response);
+
+        System.out.println((((Map)((Map)((List)mapper.readValue(response.getBody(), Map.class).get("choices")).get(0)).get("message")).get("content")));
+
+        return response.getBody();
     }
 
 }

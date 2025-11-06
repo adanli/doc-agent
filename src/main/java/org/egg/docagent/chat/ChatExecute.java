@@ -99,7 +99,8 @@ public class ChatExecute implements Runnable{
 
     private RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper mapper = new ObjectMapper();
-    private String url = "http://1414587873548331.cn-shanghai-finance-1.pai-eas.aliyuncs.com/api/predict/qwen25_vl_32b/v1/chat/completions";
+//    private String url = "http://1414587873548331.cn-shanghai-finance-1.pai-eas.aliyuncs.com/api/predict/qwen25_vl_32b/v1/chat/completions";
+    private String url = "http://1414587873548331.cn-shanghai-finance-1.pai-eas.aliyuncs.com/api/predict/qwen3_vl_32b/v1/chat/completions";
 
     private OSSUtil ossUtil;
 
@@ -678,7 +679,8 @@ public class ChatExecute implements Runnable{
 
 
             MultiValueMap<String, String> headers = new HttpHeaders();
-            headers.add("Authorization", "ZGU2N2EwOWE0MmI0ZGEyNmNjNmE5NTc1YTBhN2MxOTAyYjNlYzAxYw==");
+//            headers.add("Authorization", "ZGU2N2EwOWE0MmI0ZGEyNmNjNmE5NTc1YTBhN2MxOTAyYjNlYzAxYw==");
+            headers.add("Authorization", "Zjk5MzgyMzg4YTA5MTAxNjIwNGNjNWFiOGIyMjQyOGRjYTdjZDE1YQ==");
             headers.add("Content-Type", "application/json");
 
             RequestEntity<String> request = new RequestEntity<>(mapper.writeValueAsString(params), headers, HttpMethod.POST, URI.create(url));
@@ -688,7 +690,7 @@ public class ChatExecute implements Runnable{
 //            System.out.println((((Map)((Map)((List)mapper.readValue(response.getBody(), Map.class).get("choices")).get(0)).get("message")).get("content")));
 
 //            return response.getBody();
-            return (String) (((Map)((Map)((List)mapper.readValue(response.getBody(), Map.class).get("choices")).get(0)).get("message")).get("content"));
+            return ((String) (((Map)((Map)((List)mapper.readValue(response.getBody(), Map.class).get("choices")).get(0)).get("message")).get("content"))).trim();
 
         } catch (Exception e) {
             e.printStackTrace();

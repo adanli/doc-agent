@@ -465,11 +465,6 @@ public class ChatController implements InitializingBean {
         int skip = 0;
         for (int i=files.size()-1; i>=0; i--) {
             String file = files.get(i);
-
-            if(file.contains("2024.09.20-案均回溯-v0.1")) {
-                System.out.println();
-            }
-
             file = file.replaceAll("\\\\", "/").trim();
 
             FileContent content = this.findByPath(file);

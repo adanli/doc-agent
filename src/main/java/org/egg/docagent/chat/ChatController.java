@@ -465,7 +465,12 @@ public class ChatController implements InitializingBean {
         int skip = 0;
         for (int i=files.size()-1; i>=0; i--) {
             String file = files.get(i);
-            file = file.replaceAll("\\\\", "/");
+
+            if(file.contains("2024.09.20-案均回溯-v0.1")) {
+                System.out.println();
+            }
+
+            file = file.replaceAll("\\\\", "/").trim();
 
             FileContent content = this.findByPath(file);
             if(content != null) {
@@ -799,8 +804,8 @@ public class ChatController implements InitializingBean {
 
             FileContent fileContent = getFileContent(String.format("%s/%s", preHandlePath, f), false);
             String id = fileContent.getId();
-            FileContent existContent = null;
-//            FileContent existContent = this.findById(id);
+//            FileContent existContent = null;
+            FileContent existContent = this.findById(id);
             if(existContent != null) {
                 skipCount++;
             } else {
@@ -1064,5 +1069,12 @@ public class ChatController implements InitializingBean {
         return response.getBody();
     }
 
+
+    @PostMapping(value = "/run")
+    public void run() throws Exception{
+        this.execute();
+        this.preHandle();
+        this.saveIntoMilvus2();
+    }
 
 }

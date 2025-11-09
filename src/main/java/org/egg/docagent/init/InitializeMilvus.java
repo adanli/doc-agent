@@ -22,7 +22,7 @@ public class InitializeMilvus {
 //                .uri("http://localhost:19530")
                 .uri("http://11.0.0.191:19530")
                 .build();
-        client = new MilvusClientV2(config);
+//        client = new MilvusClientV2(config);
     }
 
     private static void createCollection() {

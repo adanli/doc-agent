@@ -29,10 +29,10 @@ public class MinIOUtil implements InitializingBean {
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        client = MinioClient.builder()
+        /*client = MinioClient.builder()
                 .endpoint(endpoint)
                 .credentials(accessKey, secretKey)
-                .build();
+                .build();*/
     }
 
     /**
